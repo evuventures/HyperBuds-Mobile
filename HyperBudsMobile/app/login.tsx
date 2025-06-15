@@ -1,45 +1,82 @@
-// app/login.tsx
-import { useRouter } from 'expo-router';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch } from 'react-native';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather, AntDesign, Entypo } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleLogin = () => {
-    // TODO: Add authentication logic
-    router.replace('/'); // Go back to home screen
-  };
+  const [rememberMe, setRememberMe] = useState(false);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      {/* Gradient Header */}
+      <View style={styles.headerWrapper}>
+        <LinearGradient colors={['#6A0DAD', '#8A2BE2']} style={styles.headerCurve} />
+        <Text style={styles.headerText}>Log In</Text>
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-      />
+      <Text style={styles.welcome}>Welcome back!</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={styles.inputField}>
+        <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
+        <TextInput
+          placeholder="Username / Email"
+          placeholderTextColor="#aaa"
+          style={styles.input}
+        />
+      </View>
 
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <View style={styles.inputField}>
+        <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
+        <TextInput
+          placeholder="Password"
+          placeholderTextColor="#aaa"
+          secureTextEntry
+          style={styles.input}
+        />
+      </View>
+
+      <View style={styles.row}>
+        <View style={styles.rememberRow}>
+          <Switch
+            value={rememberMe}
+            onValueChange={setRememberMe}
+            trackColor={{ true: '#6A0DAD', false: '#ccc' }}
+            thumbColor="#fff"
+          />
+          <Text style={styles.rememberText}>Remember me</Text>
+        </View>
+        <TouchableOpacity>
+          <Text style={styles.forgotText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={styles.loginButton}>
+        <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.loginGradient}>
+          <Text style={styles.loginText}>Log In</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
+      <Text style={styles.signupPrompt}>
+        Don’t have an account?{' '}
+        <Text style={styles.signupLink} onPress={() => router.push('/signup')}>
+          Sign Up
+        </Text>
+      </Text>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.divider} />
+        <Text style={styles.continueWith}>Continue with</Text>
+        <View style={styles.divider} />
+      </View>
+
+      <View style={styles.socialRow}>
+        <AntDesign name="apple1" size={26} color="black" />
+        <AntDesign name="instagram" size={26} color="#E1306C" />
+        <AntDesign name="google" size={26} color="#DB4437" />
+        <Entypo name="music" size={26} color="#000" />
+      </View>
     </View>
   );
 }
@@ -47,44 +84,112 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 30,
     backgroundColor: '#fff',
+    paddingHorizontal: 30,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 30,
+  headerWrapper: {
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  headerCurve: {
+    position: 'absolute',
+    width: '150%',
+    height: 200,
+    borderBottomLeftRadius: 200,
+    borderBottomRightRadius: 200,
+    transform: [{ scaleX: 1.4 }],
+  },
+  headerText: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  welcome: {
+    fontSize: 22,
+    fontWeight: '600',
     textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 25,
   },
-  input: {
+  inputField: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ccc',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 15,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
     fontSize: 16,
+    color: '#000',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rememberText: {
+    marginLeft: 6,
+    color: '#333',
+  },
+  forgotText: {
+    color: '#2563EB',
+    fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#6A0DAD',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 20,
   },
-  buttonText: {
+  loginGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  loginText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  backButton: {
-    marginTop: 20,
-    alignItems: 'center',
+  signupPrompt: {
+    textAlign: 'center',
+    fontSize: 14,
+    marginBottom: 20,
   },
-  backButtonText: {
+  signupLink: {
     color: '#6A0DAD',
-    fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  continueWith: {
+    marginHorizontal: 10,
+    color: '#888',
+    fontSize: 12,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
   },
 });

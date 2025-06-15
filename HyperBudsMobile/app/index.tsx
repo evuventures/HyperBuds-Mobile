@@ -1,27 +1,20 @@
-import { useRouter } from 'expo-router'; // ← Import this
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 
-export default function HomeScreen() {
-  const router = useRouter(); // ← Initialize the router
+export default function WelcomePage() {
+  const router = useRouter();
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to HyperBuds!</Text>
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.push('/login')} // ← Navigate to login
-        >
-          <Text style={styles.buttonText}>Login</Text>
-        </TouchableOpacity>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/signup')}>
+        <Text style={styles.buttonText}>Sign Up</Text>
+      </TouchableOpacity>
 
-        <TouchableOpacity 
-          onPress={() => router.push('/signup')}
-          style={styles.button}>
-          <Text style={styles.buttonText}>Signup</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/login')}>
+        <Text style={styles.buttonText}>Log In</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -31,24 +24,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 30,
+    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 24,
-    marginBottom: 30,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 16,
+    fontSize: 26,
+    fontWeight: 'bold',
+    marginBottom: 40,
   },
   button: {
     backgroundColor: '#6A0DAD',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 30,
     borderRadius: 8,
+    marginVertical: 10,
+    width: '80%',
+    alignItems: 'center',
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
