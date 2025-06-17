@@ -1,116 +1,139 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ImageBackground,
+} from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather, AntDesign, Entypo } from '@expo/vector-icons';
+import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+
+export const screenOptions = {
+  headerShown: false,
+};
 
 export default function LoginScreen() {
   const router = useRouter();
   const [rememberMe, setRememberMe] = useState(false);
 
   return (
-    <View style={styles.container}>
-      {/* Gradient Header */}
-      <View style={styles.headerWrapper}>
-        <LinearGradient colors={['#6A0DAD', '#8A2BE2']} style={styles.headerCurve} />
-        <Text style={styles.headerText}>Log In</Text>
-      </View>
-
-      <Text style={styles.welcome}>Welcome back!</Text>
-
-      <View style={styles.inputField}>
-        <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
-        <TextInput
-          placeholder="Username / Email"
-          placeholderTextColor="#aaa"
-          style={styles.input}
-        />
-      </View>
-
-      <View style={styles.inputField}>
-        <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
-        <TextInput
-          placeholder="Password"
-          placeholderTextColor="#aaa"
-          secureTextEntry
-          style={styles.input}
-        />
-      </View>
-
-      <View style={styles.row}>
-        <View style={styles.rememberRow}>
-          <Switch
-            value={rememberMe}
-            onValueChange={setRememberMe}
-            trackColor={{ true: '#6A0DAD', false: '#ccc' }}
-            thumbColor="#fff"
-          />
-          <Text style={styles.rememberText}>Remember me</Text>
+    <ImageBackground
+      source={require('../assets/images/login.png')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <View style={styles.container}>
+        <View style={styles.headerWrapper}>
+          <Text style={styles.loginTitle}>Log In</Text>
         </View>
-        <TouchableOpacity>
-          <Text style={styles.forgotText}>Forgot Password?</Text>
+
+        <Text style={styles.welcome}>Welcome back!</Text>
+
+        <View style={styles.inputField}>
+          <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
+          <TextInput
+            placeholder="Username / Email"
+            placeholderTextColor="#aaa"
+            style={styles.input}
+          />
+        </View>
+
+        <View style={styles.inputField}>
+          <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#aaa"
+            secureTextEntry
+            style={styles.input}
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.rememberRow}>
+            <TouchableOpacity
+              style={[styles.circle, rememberMe && styles.circleChecked]}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              {rememberMe && <Feather name="check" size={14} color="#fff" />}
+            </TouchableOpacity>
+            <Text style={styles.rememberText}>Remember me</Text>
+          </View>
+          <TouchableOpacity>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.loginButton}>
+          <LinearGradient
+            colors={['#3B82F6', '#9333EA']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.loginGradient}
+          >
+            <Text style={styles.loginText}>Log In</Text>
+          </LinearGradient>
         </TouchableOpacity>
+
+        <View style={styles.signupContainer}>
+          <Text style={styles.signupPrompt}>Don’t have an account?</Text>
+          <Text
+            style={styles.signupLink}
+            onPress={() => router.push('/signup')}
+          >
+            Sign Up
+          </Text>
+        </View>
+
+        <View style={styles.socialContainer}>
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.continueWith}>Continue with</Text>
+            <View style={styles.divider} />
+          </View>
+
+          <View style={styles.socialRow}>
+            <AntDesign name="apple1" size={26} color="black" />
+            <AntDesign name="instagram" size={26} color="#E1306C" />
+            <AntDesign name="google" size={26} color="#DB4437" />
+            <FontAwesome5 name="tiktok" size={24} color="#000" />
+          </View>
+        </View>
       </View>
-
-      <TouchableOpacity style={styles.loginButton}>
-        <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.loginGradient}>
-          <Text style={styles.loginText}>Log In</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-
-      <Text style={styles.signupPrompt}>
-        Don’t have an account?{' '}
-        <Text style={styles.signupLink} onPress={() => router.push('/signup')}>
-          Sign Up
-        </Text>
-      </Text>
-
-      <View style={styles.dividerRow}>
-        <View style={styles.divider} />
-        <Text style={styles.continueWith}>Continue with</Text>
-        <View style={styles.divider} />
-      </View>
-
-      <View style={styles.socialRow}>
-        <AntDesign name="apple1" size={26} color="black" />
-        <AntDesign name="instagram" size={26} color="#E1306C" />
-        <AntDesign name="google" size={26} color="#DB4437" />
-        <Entypo name="music" size={26} color="#000" />
-      </View>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     paddingHorizontal: 30,
+    backgroundColor: 'transparent', // optional overlay for contrast
   },
   headerWrapper: {
-    height: 180,
-    justifyContent: 'center',
+    height: 220,
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    overflow: 'hidden',
   },
-  headerCurve: {
-    position: 'absolute',
-    width: '150%',
-    height: 200,
-    borderBottomLeftRadius: 200,
-    borderBottomRightRadius: 200,
-    transform: [{ scaleX: 1.4 }],
-  },
-  headerText: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: 'bold',
+  loginTitle: {
+    fontSize: 50,
+    fontWeight: '600',
+    color: '#A855F7',
+    textAlign: 'center',
+    lineHeight: 50,
+    letterSpacing: -2.5,
+    marginBottom: 30,
   },
   welcome: {
-    fontSize: 22,
+    fontSize: 25,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 50,
     marginBottom: 25,
   },
   inputField: {
@@ -122,6 +145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 15,
+    backgroundColor: '#fff',
   },
   inputIcon: {
     marginRight: 8,
@@ -149,6 +173,20 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '500',
   },
+  circle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#6A0DAD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    marginRight: 8,
+  },
+  circleChecked: {
+    backgroundColor: '#6A0DAD',
+  },
   loginButton: {
     borderRadius: 10,
     overflow: 'hidden',
@@ -156,21 +194,32 @@ const styles = StyleSheet.create({
   },
   loginGradient: {
     paddingVertical: 14,
+    paddingHorizontal: 70,
     alignItems: 'center',
+    alignSelf: 'center',
+    borderRadius: 10,
   },
   loginText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
+  },
+  signupContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
   },
   signupPrompt: {
-    textAlign: 'center',
     fontSize: 14,
-    marginBottom: 20,
+    color: '#333',
   },
   signupLink: {
-    color: '#6A0DAD',
+    fontSize: 16,
     fontWeight: '600',
+    color: '#338BFF',
+    marginTop: 4,
+  },
+  socialContainer: {
+    marginTop: 1,
   },
   dividerRow: {
     flexDirection: 'row',
