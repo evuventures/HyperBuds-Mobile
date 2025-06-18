@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16, color: '#000' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   rememberRow: { flexDirection: 'row', alignItems: 'center' },
-  rememberText: { marginLeft: 6, color: '#333' },
+  rememberText: { marginLeft: 5, marginRight:10, color: '#333' },
   forgotText: { color: '#2563EB', fontWeight: '500' },
   circle: {
     width: 20,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    marginRight: 8,
+    marginRight: 2,
   },
   circleChecked: { backgroundColor: '#6A0DAD' },
   loginButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 20 },

@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   back: {
     position: 'absolute',
-    top: 20,
+    top: 70,
     left: 20,
   },
   title: {
