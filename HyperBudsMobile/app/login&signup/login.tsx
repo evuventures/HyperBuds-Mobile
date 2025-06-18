@@ -1,3 +1,6 @@
+// app/loging&signup/login.tsx
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +9,6 @@ import {
   StyleSheet,
   ImageBackground,
 } from 'react-native';
-import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -21,7 +23,7 @@ export default function LoginScreen() {
 
   return (
     <ImageBackground
-      source={require('../assets/images/login.png')}
+      source={require('../../assets/images/login.png')}
       style={styles.background}
       resizeMode="cover"
     >
@@ -61,12 +63,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton}>
+        <TouchableOpacity style={styles.loginButton} onPress={() => {/* handle login */}}>
           <LinearGradient
             colors={['#3B82F6', '#9333EA']}
             start={{ x: 0, y: 0 }}
@@ -79,12 +81,9 @@ export default function LoginScreen() {
 
         <View style={styles.signupContainer}>
           <Text style={styles.signupPrompt}>Don’t have an account?</Text>
-          <Text
-            style={styles.signupLink}
-            onPress={() => router.push('/signup')}
-          >
-            Sign Up
-          </Text>
+          <TouchableOpacity onPress={() => router.push('/login&signup/signup')}>
+            <Text style={styles.signupLink}>Sign Up</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.socialContainer}>
@@ -98,7 +97,7 @@ export default function LoginScreen() {
             <AntDesign name="apple1" size={26} color="black" />
             <AntDesign name="instagram" size={26} color="#E1306C" />
             <AntDesign name="google" size={26} color="#DB4437" />
-            <FontAwesome5 name="tiktok" size={24} color="#000" />
+            <FontAwesome5 name="tiktok" size={24} color="black" />
           </View>
         </View>
       </View>
@@ -107,19 +106,9 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 30,
-    backgroundColor: 'transparent', // optional overlay for contrast
-  },
-  headerWrapper: {
-    height: 220,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
+  background: { flex: 1 },
+  container: { flex: 1, paddingHorizontal: 30, backgroundColor: 'transparent' },
+  headerWrapper: { height: 220, justifyContent: 'flex-end', alignItems: 'center' },
   loginTitle: {
     fontSize: 50,
     fontWeight: '600',
@@ -129,13 +118,7 @@ const styles = StyleSheet.create({
     letterSpacing: -2.5,
     marginBottom: 30,
   },
-  welcome: {
-    fontSize: 25,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 50,
-    marginBottom: 25,
-  },
+  welcome: { fontSize: 25, fontWeight: '600', textAlign: 'center', marginTop: 50, marginBottom: 25 },
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -147,32 +130,12 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: '#fff',
   },
-  inputIcon: {
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  rememberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rememberText: {
-    marginLeft: 6,
-    color: '#333',
-  },
-  forgotText: {
-    color: '#2563EB',
-    fontWeight: '500',
-  },
+  inputIcon: { marginRight: 8 },
+  input: { flex: 1, fontSize: 16, color: '#000' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center' },
+  rememberText: { marginLeft: 6, color: '#333' },
+  forgotText: { color: '#2563EB', fontWeight: '500' },
   circle: {
     width: 20,
     height: 20,
@@ -184,61 +147,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginRight: 8,
   },
-  circleChecked: {
-    backgroundColor: '#6A0DAD',
-  },
-  loginButton: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  loginGradient: {
-    paddingVertical: 14,
-    paddingHorizontal: 70,
-    alignItems: 'center',
-    alignSelf: 'center',
-    borderRadius: 10,
-  },
-  loginText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  signupContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  signupPrompt: {
-    fontSize: 14,
-    color: '#333',
-  },
-  signupLink: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#338BFF',
-    marginTop: 4,
-  },
-  socialContainer: {
-    marginTop: 1,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
-  },
-  continueWith: {
-    marginHorizontal: 10,
-    color: '#888',
-    fontSize: 12,
-  },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-  },
+  circleChecked: { backgroundColor: '#6A0DAD' },
+  loginButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 20 },
+  loginGradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', alignSelf: 'center', borderRadius: 10 },
+  loginText: { color: '#fff', fontSize: 20, fontWeight: '600' },
+  signupContainer: { alignItems: 'center', marginBottom: 10 },
+  signupPrompt: { fontSize: 14, color: '#333' },
+  signupLink: { fontSize: 16, fontWeight: '600', color: '#338BFF', marginTop: 4 },
+  socialContainer: { marginTop: 1 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  divider: { flex: 1, height: 1, backgroundColor: '#ddd' },
+  continueWith: { marginHorizontal: 10, color: '#888', fontSize: 12 },
+  socialRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20 },
 });

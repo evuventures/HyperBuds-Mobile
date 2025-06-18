@@ -1,4 +1,6 @@
-import { useState } from 'react';
+// app/loging&signup/signup.tsx
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +12,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather, AntDesign } from '@expo/vector-icons';
-import { FontAwesome5 } from '@expo/vector-icons'; // TikTok logo
+import { FontAwesome5 } from '@expo/vector-icons';
+
+export const screenOptions = {
+  headerShown: false,
+};
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -18,7 +24,7 @@ export default function SignupScreen() {
 
   return (
     <ImageBackground
-      source={require('../assets/images/signup.png')} // ✅ adjust the path if different
+      source={require('../../assets/images/signup.png')}
       style={styles.background}
       resizeMode="cover"
     >
@@ -27,7 +33,7 @@ export default function SignupScreen() {
         <Text style={styles.title}>Sign Up</Text>
 
         <View style={styles.formWrapper}>
-          {/* Inputs */}
+          {/* Username */}
           <View style={styles.inputField}>
             <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
@@ -37,6 +43,7 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* Phone */}
           <View style={styles.inputField}>
             <Feather name="phone" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
@@ -49,15 +56,18 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* Email */}
           <View style={styles.inputField}>
             <Feather name="mail" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
               placeholder="Email"
               placeholderTextColor="#aaa"
+              keyboardType="email-address"
               style={styles.input}
             />
           </View>
 
+          {/* Password */}
           <View style={styles.inputField}>
             <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
@@ -68,6 +78,7 @@ export default function SignupScreen() {
             />
           </View>
 
+          {/* Confirm */}
           <View style={styles.inputField}>
             <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
@@ -80,16 +91,23 @@ export default function SignupScreen() {
 
           {/* Sign Up Button */}
           <TouchableOpacity style={styles.signupButton}>
-            <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButton}>
+            <LinearGradient
+              colors={['#3B82F6', '#9333EA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientButton}
+            >
               <Text style={styles.signupText}>Sign Up</Text>
             </LinearGradient>
           </TouchableOpacity>
 
           {/* Log In Link */}
           <Text style={styles.loginPrompt}>
-            Already have an account?
-            {'\n'}
-            <Text style={styles.loginLink} onPress={() => router.replace('/login')}>
+            Already have an account?{' '}
+            <Text
+              style={styles.loginLink}
+              onPress={() => router.replace('/login&signup/login')}
+            >
               Log In
             </Text>
           </Text>
@@ -115,15 +133,8 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  formWrapperContainer: {
-    flex: 1,
-    paddingHorizontal: 30,
-  },
+  background: { flex: 1, width: '100%', height: '100%' },
+  overlay: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
   title: {
     fontSize: 48,
     fontWeight: '600',
@@ -132,9 +143,7 @@ const styles = StyleSheet.create({
     marginTop: 90,
     marginBottom: 65,
   },
-  formWrapper: {
-    marginTop: 20,
-  },
+  formWrapper: { marginTop: 20 },
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -144,23 +153,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 15,
-    backgroundColor: '#fff', // helps with readability
-    width: '90%', //  slightly narrower than full width
-    alignSelf: 'center', // center the input field horizontally
+    backgroundColor: '#fff',
+    width: '90%',
+    alignSelf: 'center',
   },
-  inputIcon: {
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-  signupButton: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 15,
-  },
+  inputIcon: { marginRight: 8 },
+  input: { flex: 1, fontSize: 16, color: '#000' },
+  signupButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 15 },
   gradientButton: {
     paddingVertical: 14,
     paddingHorizontal: 70,
@@ -168,35 +167,17 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 10,
   },
-  signupText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  loginPrompt: {
-    textAlign: 'center',
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  loginLink: {
-    color: '#6A0DAD',
-    fontWeight: '600',
-  },
+  signupText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  loginPrompt: { textAlign: 'center', fontSize: 14, marginBottom: 10 },
+  loginLink: { color: '#6A0DAD', fontWeight: '600' },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+    paddingHorizontal: 30,
   },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
-  },
-  continueWith: {
-    marginHorizontal: 10,
-    color: '#888',
-    fontSize: 12,
-  },
+  divider: { flex: 1, height: 1, backgroundColor: '#ddd' },
+  continueWith: { marginHorizontal: 10, color: '#888', fontSize: 12 },
   socialRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

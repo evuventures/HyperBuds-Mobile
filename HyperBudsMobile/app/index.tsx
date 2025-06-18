@@ -1,3 +1,4 @@
+//index.tsx acts as homepage
 import React from 'react';
 import {
   View,
@@ -28,13 +29,13 @@ export default function WelcomePage() {
 
       {/* Buttons */}
       <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.button}>
-        <TouchableOpacity onPress={() => router.push('/login')}>
+        <TouchableOpacity onPress={() => router.push('/login&signup/login')}>
           <Text style={styles.buttonText}>Log In</Text>
         </TouchableOpacity>
       </LinearGradient>
 
       <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.button}>
-        <TouchableOpacity onPress={() => router.push('/signup')}>
+        <TouchableOpacity onPress={() => router.push('/login&signup/signup')}>
           <Text style={styles.buttonText}>Sign Up</Text>
         </TouchableOpacity>
       </LinearGradient>
