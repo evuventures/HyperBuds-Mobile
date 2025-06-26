@@ -41,7 +41,7 @@ export default function WelcomePage() {
       </LinearGradient>
 
       {/* Help link */}
-      <TouchableOpacity>
+      <TouchableOpacity onPress={()=> router.push('/registration/buildprofile')}>
         <Text style={styles.helpText}>Help</Text>
       </TouchableOpacity>
 
