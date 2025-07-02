@@ -90,7 +90,9 @@ export default function SignupScreen() {
           </View>
 
           {/* Sign Up Button */}
-          <TouchableOpacity style={styles.signupButton}>
+          <TouchableOpacity style={styles.signupButton}
+          onPress={() => router.replace('/registration/onboarding')}
+          >
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
               start={{ x: 0, y: 0 }}

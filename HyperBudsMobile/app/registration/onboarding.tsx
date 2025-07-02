@@ -21,59 +21,67 @@ const OnboardingScreen = () => {
       dotColor="#ccc"
       activeDotColor="#A855F7"
     >
-      {/* Slide 1 */}
-      <View style={styles.slide}>
-        <Image source={require('../../assets/images/onb1.png')} style={styles.image} />
-        <Text style={styles.header}>
-          <Text style={styles.bold}>Welcome to{'\n'}HyperBuds!</Text>
-        </Text>
-        <Text style={styles.subtext}>
-          Discover, connect, and collaborate with creators like never before, powered by intelligent AI matching.
-        </Text>
-        <View style={styles.bottomButtons}>
-          <TouchableOpacity style={styles.gradientButton} onPress={handleNext}>
-            <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <Text style={styles.skip}>Skip</Text>
-        </View>
-      </View>
+        {/* Slide 1 */}
+  <View style={styles.slide}>
+    <Image source={require('../../assets/images/onb1.png')} style={styles.image} />
+    <Text style={styles.header}>
+      <Text style={styles.bold}>Welcome to{'\n'}HyperBuds!</Text>
+    </Text>
+    <Text style={styles.subtext}>
+      Discover, connect, and collaborate with creators like never before, powered by intelligent AI matching.
+    </Text>
+    <View style={styles.bottomButtons}>
+      <TouchableOpacity style={styles.gradientButton} onPress={handleNext}>
+        <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
+          <Text style={styles.buttonText}>Next</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.push('/registration/buildprofile')}>
+        <Text style={styles.skip}>Skip</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
 
-      {/* Slide 2 */}
-      <View style={styles.slide}>
-        <Image source={require('../../assets/images/onb2.png')} style={styles.image2} />
-        <Text style={styles.header}>
-          <Text style={styles.bold}>Find your Perfect{'\n'}Collab Partner</Text>
-        </Text>
-        <Text style={styles.subtext}>
-          Our AI Matchmaker intelligently suggests ideal collaborators based on your niche, audience, and goals.
-        </Text>
-        <View style={styles.bottomButtons}>
-          <TouchableOpacity style={styles.gradientButton} onPress={handleNext}>
-            <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
-              <Text style={styles.buttonText}>Next</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <Text style={styles.skip}>Skip</Text>
-        </View>
-      </View>
+        {/* Slide 2 */}
+  <View style={styles.slide}>
+    <Image source={require('../../assets/images/onb2.png')} style={styles.image2} />
+    <Text style={styles.header}>
+      <Text style={styles.bold}>Find your Perfect{'\n'}Collab Partner</Text>
+    </Text>
+    <Text style={styles.subtext}>
+      Our AI Matchmaker intelligently suggests ideal collaborators based on your niche, audience, and goals.
+    </Text>
+    <View style={styles.bottomButtons}>
+      <TouchableOpacity style={styles.gradientButton} onPress={handleNext}>
+        <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
+          <Text style={styles.buttonText}>Next</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.push('/registration/buildprofile')}>
+        <Text style={styles.skip}>Skip</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
 
       {/* Slide 3 */}
-      <View style={styles.slide}>
-        <Image source={require('../../assets/images/onb3.png')} style={styles.image3} />
-        <Text style={styles.header}>
-          <Text style={styles.bold}>Go Live &{'\n'}Create Magic</Text>
-        </Text>
-        <Text style={styles.subtext}>
-          Jump into our basic Duet Studio to co-stream, record, and produce amazing content with your new partners.
-        </Text>
-        <TouchableOpacity style={styles.gradientButton} onPress={() => router.replace('/')}>
-          <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
-            <Text style={styles.buttonText}>Get Started</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+<View style={styles.slide}>
+  <Image source={require('../../assets/images/onb3.png')} style={styles.image3} />
+  <Text style={styles.header}>
+    <Text style={styles.bold}>Go Live &{'\n'}Create Magic</Text>
+  </Text>
+  <Text style={styles.subtext}>
+    Jump into our basic Duet Studio to co-stream, record, and produce amazing content with your new partners.
+  </Text>
+  <TouchableOpacity
+    style={styles.gradientButton}
+    onPress={() => router.push('/registration/buildprofile')}
+  >
+    <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.gradientButtonInner}>
+      <Text style={styles.buttonText}>Get Started</Text>
+    </LinearGradient>
+  </TouchableOpacity>
+</View>
+
     </Swiper>
   );
 };
