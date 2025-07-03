@@ -1,5 +1,6 @@
 // app/login&signup/forgotpass.tsx
 
+import { Image } from 'react-native';
 import React from 'react';
 import {
   SafeAreaView,
@@ -23,6 +24,30 @@ export default function ForgotPass() {
 
   return (
     <SafeAreaView style={styles.container}>
+
+    {/* left semi cicle */}
+    <Image
+      source={require('../../assets/images/circle1.png')}
+      style={styles.leftcircleimage}
+    />
+
+    {/* right semi cicle */}
+    <Image
+      source={require('../../assets/images/circle2.png')}
+      style={styles.rightcircleimage}
+    />
+
+    {/* polygon bottom left*/}
+    <Image
+      source={require('../../assets/images/fpblpoly.png')}
+      style={styles.bottomleftpoly}
+    />
+    {/* polygon bottom right*/}
+    <Image
+      source={require('../../assets/images/fpbrpoly.png')}
+      style={styles.bottomrightpoly}
+    />
+
       {/* Back button */}
       <TouchableOpacity style={styles.back} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={24} color="#000" />
@@ -69,16 +94,17 @@ const styles = StyleSheet.create({
   },
   back: {
     position: 'absolute',
-    top: 70,
+    top: 30,
     left: 20,
   },
   title: {
-    marginTop: 150,
-    fontSize: 50,
-    fontWeight: '700',
+    marginTop: 100,
+    fontSize: 45,
+    fontWeight: '600',
     lineHeight: 56,
-    color: '#A855F7',
+    color: '#A259FF',
     textAlign: 'center',
+    letterSpacing: -1.5, 
   },
   subtitle: {
     marginTop: 20,
@@ -123,4 +149,45 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
   },
+  leftcircleimage: {
+    position: 'absolute',
+    top: 0,         
+    left: -50,        
+    width: 250,     
+    height: 250,    
+    resizeMode: 'contain',
+    zIndex: -1,
+    
+  },
+  rightcircleimage: {
+    position: 'absolute',
+    top: -275,         
+    left: 175,        
+    width: 550,     
+    height: 550,    
+    resizeMode: 'contain',
+    zIndex: -1,
+    
+  },
+  bottomleftpoly: {
+    position: 'absolute',
+    bottom: -20,         
+    left: 0,        
+    width: 125,     
+    height: 125,    
+    resizeMode: 'contain',
+    zIndex: -1,
+    
+  },
+  bottomrightpoly: {
+    position: 'absolute',
+    bottom: -10,         
+    right: -10,        
+    width: 100,     
+    height: 100,    
+    resizeMode: 'contain',
+    zIndex: -1,
+    
+  },
+
 });

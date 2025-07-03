@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
   helpText: {
     color: '#2563EB',
     fontSize: 14,
-    marginTop: 15,
+    marginTop: 0,
   },
 });
