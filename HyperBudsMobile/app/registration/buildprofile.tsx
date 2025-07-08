@@ -30,6 +30,33 @@ const categoriesData = {
   'Social Connection': ['Sample text 1', 'Sample text 2'],
 };
 
+const purposeOptions = [
+  { key: 'collab', label: 'Collaborate with Others', icon: require('../../assets/images/collab.png') },
+  { key: 'learn', label: 'Learn New Skills with AI Assistance', icon: require('../../assets/images/learn.png') },
+  { key: 'friends', label: 'Meet New Friends', icon: require('../../assets/images/friends.png') },
+  { key: 'brainstorm', label: 'Use AI to Brainstorm / Co-create', icon: require('../../assets/images/AI.png') },
+  { key: 'feedback', label: 'Get Feedback on my Work', icon: require('../../assets/images/feedback.png') },
+  { key: 'idea', label: 'Build or Pitch an Idea with Others', icon: require('../../assets/images/idea.png') },
+  { key: 'monetize', label: 'Monetize my Content or Services', icon: require('../../assets/images/money.png') },
+  { key: 'livestream', label: 'Livestream Using AI Tools', icon: require('../../assets/images/live.png') },
+  { key: 'other', label: 'Other / Unsure', icon: require('../../assets/images/question.png') },
+];
+
+const collabTypes = [
+  { key: 'duet', label: 'Live Duet', icon: require('../../assets/images/duet.png') },
+  { key: 'podcast', label: 'Podcast', icon: require('../../assets/images/podcast.png') },
+  { key: 'interview', label: 'Interview', icon: require('../../assets/images/interview.png') },
+];
+
+const [socials, setSocials] = useState([
+  { key: 'instagram', label: 'Instagram', icon: require('../../assets/images/ig.png') },
+  { key: 'tiktok', label: 'TikTok', icon: require('../../assets/images/tiktok.png') },
+  { key: 'youtube', label: 'YouTube', icon: require('../../assets/images/yt.png') },
+  { key: 'snapchat', label: 'Snapchat', icon: require('../../assets/images/snap.png') },
+  { key: 'twitter', label: 'Twitter', icon: require('../../assets/images/twitter.png') },
+  { key: 'facebook', label: 'Facebook', icon: require('../../assets/images/fb.png') },
+]);
+
 export default function BuildProfileScreen() {
   const swiperRef = useRef<Swiper>(null);
   const currentIndex = useRef(0);
@@ -37,6 +64,20 @@ export default function BuildProfileScreen() {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSubcategories, setSelectedSubcategories] = useState<{ [key: string]: string[] }>({});
+  const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
+  const [selectedCollabs, setSelectedCollabs] = useState<string[]>([]);
+
+  const togglePurpose = (key: string) => {
+    setSelectedPurposes((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const toggleCollab = (key: string) => {
+    setSelectedCollabs((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
 
   const toggleCategory = (category: string) => {
     if (selectedCategories.includes(category)) {
@@ -58,12 +99,10 @@ export default function BuildProfileScreen() {
       updated = existing.filter((s) => s !== sub);
     } else {
       updated = [...existing, sub];
-      // if a subcategory is selected, make sure the category is selected
       if (!selectedCategories.includes(category)) {
         setSelectedCategories((prev) => [...prev, category]);
       }
     }
-
     setSelectedSubcategories((prev) => ({
       ...prev,
       [category]: updated,
@@ -90,258 +129,290 @@ export default function BuildProfileScreen() {
   );
 
   return (
-    <Swiper
-      ref={swiperRef}
-      loop={false}
-      showsPagination={true}
-      dotColor="#ccc"
-      activeDotColor="#A855F7"
-      scrollEnabled={false}
-      onIndexChanged={(index) => (currentIndex.current = index)}
-      paginationStyle={{ top: -540 }}
-    >
-      {/* Slide 1 */}
-      <View style={styles.container}>
-        {renderBackButton()}
-        <TouchableOpacity style={styles.avatarContainer}>
-          <Image source={require('../../assets/images/avatar.png')} style={styles.avatar} />
-          <Image source={require('../../assets/images/edit.png')} style={styles.editIcon} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Build Your Profile</Text>
-        <Text style={styles.label}>Short Bio (optional)</Text>
-        <TextInput
-          multiline
-          numberOfLines={4}
-          placeholder="Write a short bio..."
-          placeholderTextColor="#888"
-          style={styles.textArea}
-        />
-        <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <LinearGradient
-            colors={['#3B82F6', '#9333EA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradient}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Slide 2 - Choose Niche */}
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {renderBackButton()}
-        <Text style={styles.title}>Choose Your Niche</Text>
-        <Text style={styles.subtext}>
-          Select your primary category and related sub-niches that best describe your field or interest
-        </Text>
-
-        {Object.entries(categoriesData).map(([category, subs]) => (
-          <View key={category} style={styles.categoryBox}>
-            <TouchableOpacity
-              onPress={() => {
-                if (expandedCategories.includes(category)) {
-                  setExpandedCategories(expandedCategories.filter(c => c !== category));
-                } else {
-                  setExpandedCategories([...expandedCategories, category]);
-                }
-              }}
-              style={styles.categoryHeader}
-            >
-              <TouchableOpacity onPress={() => toggleCategory(category)}>
-                <View style={styles.checkbox}>
-                  {selectedCategories.includes(category) && <View style={styles.checkboxSelected} />}
-                </View>
-              </TouchableOpacity>
-              <Text
-                onPress={() => toggleCategory(category)}
-                style={styles.categoryText}
-              >
-                {category}
-              </Text>
-              <AntDesign
-                name={expandedCategories.includes(category) ? 'up' : 'down'}
-                size={18}
-                color="#666"
-              />
-
-            </TouchableOpacity>
-
-            {expandedCategories.includes(category) && (
-              <View style={styles.subCategoryContainer}>
-                {subs.map((sub, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.subCategoryBox}
-                    onPress={() => toggleSubcategory(category, sub)}
-                  >
-                    <View style={styles.checkbox}>
-                      {selectedSubcategories[category]?.includes(sub) && <View style={styles.checkboxSelected} />}
-                    </View>
-                    <Text style={styles.subCategoryText}>{sub}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
+    <View style={{ flex: 1 }}>
+      <View style={styles.dots}>
+        {[0, 1, 2, 3, 4].map((_, i) => (
+          <View
+            key={i}
+            style={[styles.dot, i === currentIndex.current && styles.activeDot]}
+          />
         ))}
-
-        <TouchableOpacity style={styles.button} onPress={handleContinue}>
-          <LinearGradient
-            colors={['#3B82F6', '#9333EA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.gradient}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Slide 3 - Placeholder */}
-      <View style={styles.container}>
-        {renderBackButton()}
-        <Text style={styles.placeholderText}>Slide 3</Text>
       </View>
-    </Swiper>
+
+      <Swiper
+        ref={swiperRef}
+        loop={false}
+        showsPagination={false}
+        scrollEnabled={false}
+        onIndexChanged={(index) => (currentIndex.current = index)}
+      >
+        {/* Slide 1 */}
+        <View style={styles.container}>
+          {renderBackButton()}
+          <TouchableOpacity style={styles.avatarContainer}>
+            <Image source={require('../../assets/images/avatar.png')} style={styles.avatar} />
+            <Image source={require('../../assets/images/edit.png')} style={styles.editIcon} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Build Your Profile</Text>
+          <Text style={styles.label}>Short Bio (optional)</Text>
+          <TextInput
+            multiline
+            numberOfLines={4}
+            placeholder="Write a short bio..."
+            placeholderTextColor="#888"
+            style={styles.textArea}
+          />
+          <TouchableOpacity style={styles.button} onPress={handleContinue}>
+            <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+              <Text style={styles.buttonText}>Continue</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* Slide 2 */}
+        <ScrollView contentContainerStyle={[styles.container, { alignItems: 'stretch' }]} showsVerticalScrollIndicator={false}>
+          {renderBackButton()}
+          <Text style={styles.title}>Choose Your Niche</Text>
+          <Text style={styles.subtext}>Select your primary category and related sub-niches that best describe your field or interest</Text>
+          {Object.entries(categoriesData).map(([category, subs]) => (
+            <View key={category} style={styles.categoryBox}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (expandedCategories.includes(category)) {
+                    setExpandedCategories(expandedCategories.filter(c => c !== category));
+                  } else {
+                    setExpandedCategories([...expandedCategories, category]);
+                  }
+                }}
+                style={styles.categoryHeader}
+              >
+                <TouchableOpacity onPress={() => toggleCategory(category)}>
+                  <View style={styles.checkbox}>
+                    {selectedCategories.includes(category) && <View style={styles.checkboxSelected} />}
+                  </View>
+                </TouchableOpacity>
+                <Text onPress={() => toggleCategory(category)} style={styles.categoryText}>{category}</Text>
+                <AntDesign name={expandedCategories.includes(category) ? 'up' : 'down'} size={18} color="#666" />
+              </TouchableOpacity>
+              {expandedCategories.includes(category) && (
+                <View style={styles.subCategoryContainer}>
+                  {subs.map((sub, index) => (
+                    <TouchableOpacity key={index} style={styles.subCategoryBox} onPress={() => toggleSubcategory(category, sub)}>
+                      <View style={styles.checkbox}>
+                        {selectedSubcategories[category]?.includes(sub) && <View style={styles.checkboxSelected} />}
+                      </View>
+                      <Text style={styles.subCategoryText}>{sub}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
+          <TouchableOpacity style={styles.button} onPress={handleContinue}>
+            <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+              <Text style={styles.buttonText}>Continue</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Slide 3 */}
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+          {renderBackButton()}
+          <Text style={styles.title}>Purpose of{"\n"}Using Platform</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 30 }}>
+            {purposeOptions.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                onPress={() => togglePurpose(item.key)}
+                style={[styles.purposeCard, selectedPurposes.includes(item.key) && styles.cardSelected]}
+              >
+                <View style={styles.checkbox}>
+                  {selectedPurposes.includes(item.key) && <AntDesign name="check" size={12} color="#000" />}
+                </View>
+                <Image source={item.icon} style={styles.purposeIcon} />
+                <Text style={styles.purposeText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.button} onPress={handleContinue}>
+            <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+              <Text style={styles.buttonText}>Continue</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+
+          <View style={styles.container}>
+          {renderBackButton()}
+          <Text style={styles.title}>Preferred{"\n"}Collab Types</Text>
+          <View style={styles.collabContainer}>
+            {collabTypes.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                onPress={() => toggleCollab(item.key)}
+                style={[styles.collabCard, selectedCollabs.includes(item.key) && styles.cardSelected]}
+              >
+                <View style={styles.collabCheckboxWrapper}>
+                  <View style={styles.checkbox}>
+                    {selectedCollabs.includes(item.key) && <AntDesign name="check" size={12} color="#000" />}
+                  </View>
+                </View>
+                <Image source={item.icon} style={styles.purposeIcon} />
+                <Text style={styles.purposeText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.button} onPress={handleContinue}>
+            <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+              <Text style={styles.buttonText}>Continue</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+{/* Slide 5 - Connect Socials */}
+<ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+  {renderBackButton()}
+  <Text style={styles.title}>Connect your{"\n"}Socials</Text>
+
+  <View style={{ width: '100%', gap: 12, marginTop: 20 }}>
+    {socials.map((item) => (
+      <TouchableOpacity
+        key={item.key}
+        style={styles.socialRow}
+        onPress={() => {
+          // Add logic to open a link or input here if needed
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Image source={item.icon} style={styles.socialIcon} />
+          <Text style={styles.socialLabel}>{item.label}</Text>
+        </View>
+        <AntDesign name="link" size={18} color="#444" />
+      </TouchableOpacity>
+    ))}
+  </View>
+
+  <TouchableOpacity style={styles.button} onPress={handleContinue}>
+    <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+      <Text style={styles.buttonText}>Continue</Text>
+    </LinearGradient>
+  </TouchableOpacity>
+</ScrollView>
+
+
+{/* Slide 6 - Registration Complete */}
+<View style={styles.container}>
+  {renderBackButton()}
+  <Text style={styles.title}>Registration{"\n"}complete</Text>
+
+  <Image
+    source={require('../../assets/images/check.png')}
+    style={styles.checkIcon}
+  />
+
+  <Text style={styles.completeText}>Thank you for{"\n"}registering!</Text>
+
+  <TouchableOpacity style={styles.button} onPress={handleContinue}>
+    <LinearGradient
+      colors={['#3B82F6', '#9333EA']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.gradient}
+    >
+      <Text style={styles.buttonText}>Start</Text>
+    </LinearGradient>
+  </TouchableOpacity>
+</View>
+       
+        
+      </Swiper>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-    paddingTop: 120,
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    position: 'relative',
+  container: { flexGrow: 1, backgroundColor: '#fff', padding: 20, paddingTop: 120, alignItems: 'center' },
+  avatarContainer: { position: 'relative', marginBottom: 30 },
+  avatar: { width: 120, height: 120, resizeMode: 'contain', borderRadius: 60 },
+  editIcon: { position: 'absolute', bottom: 13, right: 11, width: 24, height: 24, resizeMode: 'contain' },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#9333EA', marginBottom: 20, textAlign: 'center' },
+  label: { alignSelf: 'flex-start', fontSize: 14, marginBottom: 6, color: '#333' },
+  subtext: { textAlign: 'center', fontSize: 14, color: '#333', marginBottom: 20 },
+  textArea: { width: '100%', borderWidth: 1, borderColor: '#ccc', borderRadius: 10, padding: 10, minHeight: 100, marginBottom: 30, textAlignVertical: 'top' },
+  button: { borderRadius: 10, overflow: 'hidden', marginTop: 30, alignSelf: 'center' },
+  gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', borderRadius: 10 },
+  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  placeholderText: { fontSize: 20, color: '#999', marginBottom: 20 },
+  backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10 },
+  categoryBox: { width: '100%', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  categoryText: { flex: 1, color: '#9333EA', fontSize: 16, fontWeight: '500' },
+  subCategoryContainer: { paddingBottom: 10, gap: 10 },
+  subCategoryBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginVertical: 4 },
+  subCategoryText: { fontSize: 14, color: '#444' },
+  checkbox: { width: 18, height: 18, borderWidth: 1, borderColor: '#aaa', backgroundColor: '#fff', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  checkboxSelected: { width: 10, height: 10, backgroundColor: '#9333EA', borderRadius: 2 },
+  dots: { position: 'absolute', top: 20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', zIndex: 99, gap: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ccc' },
+  activeDot: { backgroundColor: '#A855F7' },
+  purposeCard: { width: '47%', aspectRatio: 1, borderWidth: 1, borderColor: '#aaa', borderRadius: 10, padding: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 15, position: 'relative' },
+  purposeIcon: { width: 40, height: 40, marginBottom: 10, resizeMode: 'contain' },
+  purposeText: { fontSize: 12, textAlign: 'center', color: '#000' },
+  cardSelected: { borderColor: '#9333EA', borderWidth: 2 },
+  
+  collabContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
     marginBottom: 30,
   },
-  avatar: {
-    width: 120,
-    height: 120,
-    resizeMode: 'contain',
-    borderRadius: 60,
+  collabCard: {
+    width: '30%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderColor: '#aaa',
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  editIcon: {
+  collabCheckboxWrapper: {
     position: 'absolute',
-    bottom: 13,
-    right: 11,
-    width: 24,
-    height: 24,
-    resizeMode: 'contain',
+    top: 8,
+    left: 8,
+    zIndex: 2,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#9333EA',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  label: {
-    alignSelf: 'flex-start',
-    fontSize: 14,
-    marginBottom: 6,
-    color: '#333',
-  },
-  subtext: {
-    textAlign: 'center',
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 20,
-  },
-  textArea: {
+  socialRow: {
     width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 10,
-    padding: 10,
-    minHeight: 100,
-    marginBottom: 30,
-    textAlignVertical: 'top',
-  },
-  button: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginTop: 30,
-    alignSelf: 'center',
-  },
-  gradient: {
-    paddingVertical: 14,
-    paddingHorizontal: 70,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  placeholderText: {
-    fontSize: 20,
-    color: '#999',
-    marginBottom: 20,
-  },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 10,
-  },
-  categoryBox: {
-    width: '100%',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-  },
-  categoryText: {
-    flex: 1,
-    color: '#9333EA',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  subCategoryContainer: {
-    paddingBottom: 10,
-    gap: 10,
-  },
-  subCategoryBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginVertical: 4,
+    backgroundColor: '#fff',
   },
-  subCategoryText: {
-    fontSize: 14,
-    color: '#444',
+  socialIcon: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderWidth: 1,
-    borderColor: '#aaa',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
+  socialLabel: {
+    fontSize: 15,
+    color: '#000',
   },
-  checkboxSelected: {
-    width: 10,
-    height: 10,
-    backgroundColor: '#9333EA',
-    borderRadius: 2,
+  checkIcon: {
+    width: 100,
+    height: 100,
+    marginVertical: 30,
+    resizeMode: 'contain',
   },
-  iconWrapper: {
-    padding: 6,
+  completeText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#000',
+    marginBottom: 40,
   },
+  
+
 });

@@ -68,7 +68,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login&signup/verifycode')}>
+        <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login&signup/codeverify')}>
           <LinearGradient
             colors={['#3B82F6', '#9333EA']}
             start={{ x: 0, y: 0 }}

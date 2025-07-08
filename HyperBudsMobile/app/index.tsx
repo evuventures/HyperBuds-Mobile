@@ -1,4 +1,3 @@
-//index.tsx acts as homepage
 import React from 'react';
 import {
   View,
@@ -6,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  ImageBackground,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -16,6 +14,16 @@ export default function WelcomePage() {
 
   return (
     <View style={styles.container}>
+      {/* Background polygons */}
+      <Image
+        source={require('../assets/images/indexblpoly.png')}
+        style={styles.bottomLeftPoly}
+      />
+      <Image
+        source={require('../assets/images/indexpolybr.png')}
+        style={styles.bottomRightPoly}
+      />
+
       {/* Logo */}
       <Image source={require('../assets/images/hblogo.png')} style={styles.logo} resizeMode="contain" />
 
@@ -27,25 +35,34 @@ export default function WelcomePage() {
       {/* Center image */}
       <Image source={require('../assets/images/people.png')} style={styles.people} resizeMode="contain" />
 
-      {/* Buttons */}
-      <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.button}>
-        <TouchableOpacity onPress={() => router.push('/login&signup/login')}>
+      {/* Log In Button */}
+      <TouchableOpacity style={styles.signupButton} onPress={() => router.push('/login&signup/login')}>
+        <LinearGradient
+          colors={['#3B82F6', '#9333EA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientButton}
+        >
           <Text style={styles.buttonText}>Log In</Text>
-        </TouchableOpacity>
-      </LinearGradient>
-
-      <LinearGradient colors={['#3B82F6', '#9333EA']} style={styles.button}>
-        <TouchableOpacity onPress={() => router.push('/login&signup/signup')}>
-          <Text style={styles.buttonText}>Sign Up</Text>
-        </TouchableOpacity>
-      </LinearGradient>
-
-      {/* Help link */}
-      <TouchableOpacity /*onPress={()=> router.push('HELP PAGE GOES HERE')}*/>
-        <Text style={styles.helpText}>Help</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
-      {/* Optional bottom corners — if you want to include them, import and position them with absolute */}
+      {/* Sign Up Button */}
+      <TouchableOpacity style={styles.signupButton} onPress={() => router.push('/login&signup/signup')}>
+        <LinearGradient
+          colors={['#3B82F6', '#9333EA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientButton}
+        >
+          <Text style={styles.buttonText}>Sign Up</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Help link */}
+      <TouchableOpacity>
+        <Text style={styles.helpText}>Help</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -57,6 +74,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 50,
     paddingHorizontal: 30,
+    position: 'relative', // important for absolute children
   },
   logo: {
     width: 280,
@@ -64,7 +82,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   slogan: {
-    fontSize: 26,
+    fontSize: 32,
     textAlign: 'center',
     color: '#000',
     marginBottom: 30,
@@ -77,27 +95,39 @@ const styles = StyleSheet.create({
     height: 180,
     marginBottom: 40,
   },
-  button: {
+  signupButton: {
     borderRadius: 10,
     overflow: 'hidden',
-    width: '80%',
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
+    marginBottom: 12,
+  },
+  gradientButton: {
+    width: 190,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    paddingVertical: 14,
-    textAlign: 'center',
   },
   helpText: {
     color: '#2563EB',
     fontSize: 14,
     marginTop: 0,
+  },
+  bottomLeftPoly: {
+    position: 'absolute',
+    bottom: -25,
+    left: -30,
+    width: 175,
+    height: 175,
+  },
+  bottomRightPoly: {
+    position: 'absolute',
+    bottom: -10,
+    right: -10,
+    width: 150,
+    height: 150,
   },
 });
