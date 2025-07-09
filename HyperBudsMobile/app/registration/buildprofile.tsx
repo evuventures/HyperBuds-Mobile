@@ -2,6 +2,7 @@ import { AntDesign } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import {
   Dimensions,
   Image,
@@ -58,6 +59,7 @@ const [socials, setSocials] = useState([
 ]);
 
 export default function BuildProfileScreen() {
+  const [avatar, setAvatar] = useState<string | null>(null); 
   const swiperRef = useRef<Swiper>(null);
   const currentIndex = useRef(0);
   const router = useRouter();
@@ -66,6 +68,7 @@ export default function BuildProfileScreen() {
   const [selectedSubcategories, setSelectedSubcategories] = useState<{ [key: string]: string[] }>({});
   const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
   const [selectedCollabs, setSelectedCollabs] = useState<string[]>([]);
+
 
   const togglePurpose = (key: string) => {
     setSelectedPurposes((prev) =>
@@ -108,6 +111,25 @@ export default function BuildProfileScreen() {
       [category]: updated,
     }));
   };
+//add image
+const pickImage = async () => {
+  const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permissionResult.granted) {
+    alert('Permission to access camera roll is required!');
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 1,
+  });
+
+  if (!result.canceled) {
+    setAvatar(result.assets[0].uri);
+  }
+};
 
   const handleContinue = () => {
     swiperRef.current?.scrollBy(1, true);
@@ -126,6 +148,8 @@ export default function BuildProfileScreen() {
     >
       <AntDesign name="arrowleft" size={24} color="#333" />
     </TouchableOpacity>
+    
+    
   );
 
   return (
@@ -149,12 +173,15 @@ export default function BuildProfileScreen() {
         {/* Slide 1 */}
         <View style={styles.container}>
           {renderBackButton()}
-          <TouchableOpacity style={styles.avatarContainer}>
-            <Image source={require('../../assets/images/avatar.png')} style={styles.avatar} />
+          <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
+            <Image
+              source={avatar ? { uri: avatar } : require('../../assets/images/avatar.png')}
+              style={styles.avatar}
+            />
             <Image source={require('../../assets/images/edit.png')} style={styles.editIcon} />
           </TouchableOpacity>
           <Text style={styles.title}>Build Your Profile</Text>
-          <Text style={styles.label}>Short Bio (optional)</Text>
+          <Text style={styles.label}>Short Bio </Text>
           <TextInput
             multiline
             numberOfLines={4}
