@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import Swiper from 'react-native-swiper';
-
+export default function BuildProfileScreen() {
 const { width } = Dimensions.get('window');
 
 const categoriesData = {
@@ -58,17 +58,18 @@ const [socials, setSocials] = useState([
   { key: 'facebook', label: 'Facebook', icon: require('../../assets/images/fb.png') },
 ]);
 
-export default function BuildProfileScreen() {
+
   const [avatar, setAvatar] = useState<string | null>(null); 
   const swiperRef = useRef<Swiper>(null);
-  const currentIndex = useRef(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
   const router = useRouter();
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSubcategories, setSelectedSubcategories] = useState<{ [key: string]: string[] }>({});
   const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
   const [selectedCollabs, setSelectedCollabs] = useState<string[]>([]);
-
+  
 
   const togglePurpose = (key: string) => {
     setSelectedPurposes((prev) =>
@@ -139,7 +140,7 @@ const pickImage = async () => {
     <TouchableOpacity
       style={styles.backButton}
       onPress={() => {
-        if (currentIndex.current === 0) {
+        if (currentIndex === 0) {
           router.back();
         } else {
           swiperRef.current?.scrollBy(-1);
@@ -154,25 +155,38 @@ const pickImage = async () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.dots}>
-        {[0, 1, 2, 3, 4].map((_, i) => (
-          <View
-            key={i}
-            style={[styles.dot, i === currentIndex.current && styles.activeDot]}
-          />
-        ))}
-      </View>
+  {/* Top fixed white bar */}
+  <View style={styles.topBar}>
+    <TouchableOpacity
+      style={styles.backButton}
+      onPress={() => {
+        if (currentIndex === 0) {
+          router.back();
+        } else {
+          swiperRef.current?.scrollBy(-1);
+        }
+      }}
+    >
+      <AntDesign name="arrowleft" size={24} color="#333" />
+    </TouchableOpacity>
+
+    <View style={styles.dots}>
+      {[0, 1, 2, 3, 4, 5].map((_, i) => (
+        <View key={i} style={[styles.dot, i === currentIndex && styles.activeDot]} />
+      ))}
+    </View>
+  </View>
 
       <Swiper
         ref={swiperRef}
         loop={false}
         showsPagination={false}
         scrollEnabled={false}
-        onIndexChanged={(index) => (currentIndex.current = index)}
+        onIndexChanged={(index) => setCurrentIndex(index)}
       >
         {/* Slide 1 */}
         <View style={styles.container}>
-          {renderBackButton()}
+          
           <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
             <Image
               source={avatar ? { uri: avatar } : require('../../assets/images/avatar.png')}
@@ -198,7 +212,7 @@ const pickImage = async () => {
 
         {/* Slide 2 */}
         <ScrollView contentContainerStyle={[styles.container, { alignItems: 'stretch' }]} showsVerticalScrollIndicator={false}>
-          {renderBackButton()}
+          
           <Text style={styles.title}>Choose Your Niche</Text>
           <Text style={styles.subtext}>Select your primary category and related sub-niches that best describe your field or interest</Text>
           {Object.entries(categoriesData).map(([category, subs]) => (
@@ -244,21 +258,25 @@ const pickImage = async () => {
 
         {/* Slide 3 */}
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          {renderBackButton()}
+          
           <Text style={styles.title}>Purpose of{"\n"}Using Platform</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 30 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: -50 }}>
             {purposeOptions.map((item) => (
               <TouchableOpacity
-                key={item.key}
-                onPress={() => togglePurpose(item.key)}
-                style={[styles.purposeCard, selectedPurposes.includes(item.key) && styles.cardSelected]}
-              >
+              key={item.key}
+              onPress={() => togglePurpose(item.key)}
+              style={[styles.purposeCard, selectedPurposes.includes(item.key) && styles.cardSelected]}
+            >
+              <View style={styles.cardCheckboxWrapper}>
                 <View style={styles.checkbox}>
                   {selectedPurposes.includes(item.key) && <AntDesign name="check" size={12} color="#000" />}
                 </View>
-                <Image source={item.icon} style={styles.purposeIcon} />
-                <Text style={styles.purposeText}>{item.label}</Text>
-              </TouchableOpacity>
+              </View>
+            
+              <Image source={item.icon} style={styles.purposeIcon} />
+              <Text style={styles.purposeText}>{item.label}</Text>
+            </TouchableOpacity>
+            
             ))}
           </View>
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
@@ -269,10 +287,11 @@ const pickImage = async () => {
         </ScrollView>
 
           <View style={styles.container}>
-          {renderBackButton()}
+          
           <Text style={styles.title}>Preferred{"\n"}Collab Types</Text>
           <View style={styles.collabContainer}>
             {collabTypes.map((item) => (
+              
               <TouchableOpacity
                 key={item.key}
                 onPress={() => toggleCollab(item.key)}
@@ -296,7 +315,7 @@ const pickImage = async () => {
         </View>
 {/* Slide 5 - Connect Socials */}
 <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-  {renderBackButton()}
+  
   <Text style={styles.title}>Connect your{"\n"}Socials</Text>
 
   <View style={{ width: '100%', gap: 12, marginTop: 20 }}>
@@ -327,7 +346,7 @@ const pickImage = async () => {
 
 {/* Slide 6 - Registration Complete */}
 <View style={styles.container}>
-  {renderBackButton()}
+  
   <Text style={styles.title}>Registration{"\n"}complete</Text>
 
   <Image
@@ -356,7 +375,7 @@ const pickImage = async () => {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#fff', padding: 20, paddingTop: 120, alignItems: 'center' },
+  container: { flexGrow: 1, backgroundColor: '#fff', padding: 20, paddingTop: 35, alignItems: 'center' },
   avatarContainer: { position: 'relative', marginBottom: 30 },
   avatar: { width: 120, height: 120, resizeMode: 'contain', borderRadius: 60 },
   editIcon: { position: 'absolute', bottom: 13, right: 11, width: 24, height: 24, resizeMode: 'contain' },
@@ -368,7 +387,15 @@ const styles = StyleSheet.create({
   gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', borderRadius: 10 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   placeholderText: { fontSize: 20, color: '#999', marginBottom: 20 },
-  backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10 },
+  backButton: {
+    position: 'absolute',
+    top: 0,
+    left: 10,
+    zIndex: 10,
+    padding: 20,
+  },
+  
+  
   categoryBox: { width: '100%', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
   categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   categoryText: { flex: 1, color: '#9333EA', fontSize: 16, fontWeight: '500' },
@@ -377,7 +404,7 @@ const styles = StyleSheet.create({
   subCategoryText: { fontSize: 14, color: '#444' },
   checkbox: { width: 18, height: 18, borderWidth: 1, borderColor: '#aaa', backgroundColor: '#fff', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   checkboxSelected: { width: 10, height: 10, backgroundColor: '#9333EA', borderRadius: 2 },
-  dots: { position: 'absolute', top: 20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', zIndex: 99, gap: 8 },
+  //dots: { position: 'absolute', top: 60, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', zIndex: 99, gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ccc' },
   activeDot: { backgroundColor: '#A855F7' },
   purposeCard: { width: '47%', aspectRatio: 1, borderWidth: 1, borderColor: '#aaa', borderRadius: 10, padding: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 15, position: 'relative' },
@@ -440,6 +467,33 @@ const styles = StyleSheet.create({
     color: '#000',
     marginBottom: 40,
   },
-  
+  topBar: {
+    backgroundColor: '#fff',
+    height: 50, // makes the bar smaller
+    paddingTop: 25,
+    paddingHorizontal: 20,
+    justifyContent: 'center', // <-- center content
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    zIndex: 999,
+    position: 'relative',
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  purposeCardCheckboxWrapper: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 1,
+  },
+  cardCheckboxWrapper: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 2,
+  },
 
 });
