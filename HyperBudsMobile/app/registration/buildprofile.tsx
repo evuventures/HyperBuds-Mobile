@@ -356,7 +356,7 @@ const pickImage = async () => {
 
   <Text style={styles.completeText}>Thank you for{"\n"}registering!</Text>
 
-  <TouchableOpacity style={styles.button} onPress={handleContinue}>
+  <TouchableOpacity style={styles.button} onPress={() => router.replace('/main/explore')}>
     <LinearGradient
       colors={['#3B82F6', '#9333EA']}
       start={{ x: 0, y: 0 }}
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#fff',
-    height: 50, // makes the bar smaller
+    height: 60, // makes the bar bigger/ smaller
     paddingTop: 25,
     paddingHorizontal: 20,
     justifyContent: 'center', // <-- center content

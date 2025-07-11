@@ -1,5 +1,4 @@
 // app/login&signup/verifycode.tsx
-import { Image } from 'react-native';
 import React, { useRef, useState } from 'react';
 import {
   SafeAreaView,
@@ -12,6 +11,7 @@ import {
   Keyboard,
   NativeSyntheticEvent,
   TextInputKeyPressEventData,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,7 +27,7 @@ export default function VerifyPass() {
   const ref2 = useRef<TextInput>(null);
   const ref3 = useRef<TextInput>(null);
   const ref4 = useRef<TextInput>(null);
-  const refs = [ref1, ref2, ref3, ref4];
+  const refs = [ref1, ref2, ref3, ref4] as const;
 
   const handleChange = (text: string, idx: number) => {
     if (!/^\d?$/.test(text)) return;
@@ -36,7 +36,7 @@ export default function VerifyPass() {
     setCode(newCode);
 
     if (text) {
-      if (idx < 3) {
+      if (idx < refs.length - 1) {
         refs[idx + 1].current?.focus();
       } else {
         Keyboard.dismiss();
@@ -53,8 +53,10 @@ export default function VerifyPass() {
     }
   };
 
+  // Single handleVerify that logs and then navigates
   const handleVerify = () => {
     console.log('Verifying OTP:', code.join(''));
+    router.replace('/main/explore');
   };
 
   const handleResend = () => {
@@ -64,30 +66,20 @@ export default function VerifyPass() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <SafeAreaView style={styles.container}>
-        {/* left semi cicle */}
-      <Image source={require('../../assets/images/circle1.png')} style={styles.leftcircleimage} />
-
-        {/* polygon bottom left*/}
-      <Image
-        source={require('../../assets/images/codeverifybottom.png')}
-        style={styles.bottompoly}
-      />
-      {/*right side polygon*/}
-      <Image
-        source={require('../../assets/images/codeverifyright.png')}
-        style={styles.rightpoly}
-      />
+        {/* Background decorations */}
+        <Image source={require('../../assets/images/circle1.png')} style={styles.leftcircleimage} />
+        <Image source={require('../../assets/images/codeverifybottom.png')} style={styles.bottompoly} />
+        <Image source={require('../../assets/images/codeverifyright.png')} style={styles.rightpoly} />
 
         <TouchableOpacity style={styles.back} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-          
-    
+
         <Text style={styles.title}>Code{'\n'}Verification</Text>
         <Text style={styles.subtitle}>
           Please enter the code we just sent to email …
         </Text>
-        
+
         <View style={styles.otpContainer}>
           {refs.map((r, i) => (
             <TextInput
@@ -147,7 +139,7 @@ const styles = StyleSheet.create({
     lineHeight: 56,
     color: '#A259FF',
     textAlign: 'center',
-    letterSpacing: -1.5, 
+    letterSpacing: -1.5,
   },
   subtitle: {
     marginTop: 10,
@@ -168,12 +160,12 @@ const styles = StyleSheet.create({
     height: 45,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 25, // More rounded
+    borderRadius: 25,
     fontSize: 24,
     color: '#000',
   },
   resendContainer: {
-    flexDirection: 'column', // Stack vertically
+    flexDirection: 'column',
     alignItems: 'center',
     marginTop: 20,
   },
@@ -205,32 +197,29 @@ const styles = StyleSheet.create({
   },
   leftcircleimage: {
     position: 'absolute',
-    top: 0,         
-    left: -50,        
-    width: 250,     
-    height: 250,    
+    top: 0,
+    left: -50,
+    width: 250,
+    height: 250,
     resizeMode: 'contain',
     zIndex: -1,
-    
   },
   bottompoly: {
     position: 'absolute',
-    bottom: -30,         
-    left: 80,        
-    width: 125,     
-    height: 125,    
+    bottom: -30,
+    left: 80,
+    width: 125,
+    height: 125,
     resizeMode: 'contain',
     zIndex: -1,
-    
   },
   rightpoly: {
     position: 'absolute',
-    top: 250,         
-    right: -30,        
-    width: 100,     
-    height: 100,    
+    top: 250,
+    right: -30,
+    width: 100,
+    height: 100,
     resizeMode: 'contain',
     zIndex: -1,
-    
   },
 });
