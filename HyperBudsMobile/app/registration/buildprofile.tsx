@@ -25,10 +25,25 @@ const categoriesData = {
     'Lifestyle: Beauty, Fitness',
     'Education: Online Courses, Tutorials',
   ],
-  Artist: ['Sample text 1', 'Sample text 2'],
-  Developer: ['Sample text 1', 'Sample text 2'],
-  Educator: ['Sample text 1', 'Sample text 2'],
-  'Social Connection': ['Sample text 1', 'Sample text 2'],
+  Artist: ['Music: Songwriting, Vocalist', 
+    'Graphic Design: Branding, UI/UX Design',
+     "Performing Artist:, Acting Dance",
+     "Crafts: Knitting/Crochet",
+    ],
+
+  Developer: ['Web Development', 
+    'Game development', 
+    'Data Science/AI: Machine Learning, Data Analysis',
+    'Blockchain/Web3: Smart Contracts, DeFi, NFTs', 
+    'Cybersecurity, Devops/clouds'],
+  Educator: ['Elementary School, Middle School, High School',
+     'Higher Education: College/University Professors, Teaching Assistants',
+    'Instructional Specialist, Support Educators',
+    'Lecurers, Mentors, Facilataters,      Online Tutors '],
+  'Social Connection': ['General Freindship',
+     ' Porfessional Networking,          Mentorship (seeking/offering)',
+    'Shared Hobbies: Books, Clubs,     Hiking Groups'],
+  
 };
 
 const purposeOptions = [
