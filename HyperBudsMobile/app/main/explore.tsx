@@ -11,11 +11,14 @@ import {
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 
 // Exact union type of Ionicons names
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export default function Explore() {
+  const router = useRouter();
+
   const features: { key: string; icon: IoniconName; label: string }[] = [
     { key: 'matches',        icon: 'star',               label: 'Matches' },
     { key: 'collaborations', icon: 'hand-left-outline',  label: 'Collaborations' },
@@ -36,7 +39,7 @@ export default function Explore() {
       {/* Header with logo and profile icon */}
       <View style={styles.header}>
         <Image source={require('../../assets/images/hblogo.png')} style={styles.logoImage} />
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/profile/profile')}>
           <Ionicons name="person-outline" size={24} color="#333" />
         </TouchableOpacity>
       </View>
@@ -121,6 +124,7 @@ export default function Explore() {
                 </View>
               </View>
             </View>
+
             {/* Divider */}
             <View style={styles.cardDivider} />
           </View>
