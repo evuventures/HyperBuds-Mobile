@@ -1,4 +1,4 @@
-// app/loging&signup/login.tsx
+// app/login&signup/login.tsx
 
 import React, { useState } from 'react';
 import {
@@ -12,6 +12,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../../src/contexts/AuthContext';
+
+//added to implement api
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../../src/firebase';
+import { createSession } from '../../src/api/auth';
 
 export const screenOptions = {
   headerShown: false,
@@ -19,8 +25,43 @@ export const screenOptions = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
+  const [identifier, setIdentifier] = useState(''); // email or username
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState<string>();
 
+  /*const onSubmit = async () => {
+    setError(undefined);
+    try {
+      await login(identifier, password);
+      // Navigate to main explore screen
+      router.replace('/main/explore');
+    } catch (e: any) {
+      setError(e.message || 'Login failed');
+    }
+  };*/
+  const onSubmit = async () => {
+    setError(undefined);
+    try {
+      // call Firebase directly here
+      const cred = await signInWithEmailAndPassword(auth, identifier, password);
+      // then create session, etc.
+      const idToken = await cred.user.getIdToken();
+      await createSession(idToken);
+      router.replace('/main/explore');
+    } catch (err: any) {
+      console.log('Firebase error code:', err.code);
+      console.log(err.message);
+      if (err.code === 'auth/user-not-found') {
+        setError('No user found with that email.');
+      } else if (err.code === 'auth/wrong-password') {
+        setError('Wrong password.');
+      } else {
+        setError('Login failed, please try again.');
+      }
+    }
+  };
   return (
     <ImageBackground
       source={require('../../assets/images/login.png')}
@@ -34,12 +75,18 @@ export default function LoginScreen() {
 
         <Text style={styles.welcome}>Welcome back!</Text>
 
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
         <View style={styles.inputField}>
           <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
           <TextInput
             placeholder="Username / Email"
             placeholderTextColor="#aaa"
             style={styles.input}
+            value={identifier}
+            onChangeText={setIdentifier}
+            autoCapitalize="none"
+            keyboardType="email-address"
           />
         </View>
 
@@ -50,6 +97,8 @@ export default function LoginScreen() {
             placeholderTextColor="#aaa"
             secureTextEntry
             style={styles.input}
+            value={password}
+            onChangeText={setPassword}
           />
         </View>
 
@@ -63,12 +112,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>
+          <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>  
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login&signup/codeverify')}>
+        <TouchableOpacity style={styles.loginButton} onPress={onSubmit}>
           <LinearGradient
             colors={['#3B82F6', '#9333EA']}
             start={{ x: 0, y: 0 }}
@@ -119,6 +168,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   welcome: { fontSize: 25, fontWeight: '600', textAlign: 'center', marginTop: 50, marginBottom: 25 },
+  errorText: { color: 'red', textAlign: 'center', marginBottom: 10 },
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -134,7 +184,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16, color: '#000' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   rememberRow: { flexDirection: 'row', alignItems: 'center' },
-  rememberText: { marginLeft: 5, marginRight:10, color: '#333' },
+  rememberText: { marginLeft: 5, marginRight: 10, color: '#333' },
   forgotText: { color: '#2563EB', fontWeight: '500' },
   circle: {
     width: 20,

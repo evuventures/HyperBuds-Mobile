@@ -140,7 +140,7 @@ export default function Explore() {
             Audience Overlap: 78%  |  Synergy Score™: 92%
           </Text>
           <View style={styles.recoButtons}>
-            <TouchableOpacity style={styles.recoGradientBtn}>
+            <TouchableOpacity style={styles.recoGradientBtn} onPress={() => router.push('/profile/otherProfile')}>
               <LinearGradient
                 colors={['#3B82F6', '#9333EA']}
                 start={{ x: 0, y: 0 }}

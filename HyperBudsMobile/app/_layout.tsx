@@ -1,11 +1,17 @@
-import { Stack } from 'expo-router';
+// app/_layout.tsx
 
-export default function StackLayout() {
+import React from 'react';
+import { Stack } from 'expo-router';
+import { AuthProvider } from '../src/contexts/AuthContext';
+
+export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false, // 👈 hides the top navigation bar for all screens
-      }}
-    />
+    <AuthProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false, // hide the top nav bar on all screens
+        }}
+      />
+    </AuthProvider>
   );
 }

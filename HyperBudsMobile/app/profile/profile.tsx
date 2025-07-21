@@ -25,7 +25,7 @@ export default function Profile() {
         {/* Banner Placeholder */}
         <View style={styles.bannerContainer}>
           <View style={styles.bannerPlaceholder} />
-          <TouchableOpacity style={styles.backButton}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -89,23 +89,10 @@ export default function Profile() {
           Short bio entry will go here but for now placeholder text to simulate a user's bio description.
         </Text>
 
-        {/* Collaborations Gallery */}
-        <Text style={styles.sectionTitle}>Collaborations</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.galleryRow}
-        >
-          <View style={styles.galleryPlaceholder} />
-          <View style={styles.galleryPlaceholder} />
-          <View style={styles.galleryPlaceholder} />
-          <TouchableOpacity style={styles.galleryMore}>
-            <Ionicons name="arrow-forward" size={24} color="#333" />
-          </TouchableOpacity>
-        </ScrollView>
+  
 
         {/* Trending Post */}
-        <Text style={styles.sectionTitle}>Trending</Text>
+        <Text style={styles.sectionTitle}>Collaboration</Text>
         <View style={styles.card}>
           <View style={styles.cardImagePlaceholder} />
           <Text style={styles.cardTitle}>Andy & Sam Podcast: Time to Learn the Art of Makeup</Text>
