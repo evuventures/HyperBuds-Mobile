@@ -12,9 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../src/contexts/AuthContext';
-
-//added to implement api
+// (you can remove `useAuth` if you’re not using it here)
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../src/firebase';
 import { createSession } from '../../src/api/auth';
@@ -25,43 +23,44 @@ export const screenOptions = {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
-  const [identifier, setIdentifier] = useState(''); // email or username
+  const [identifier, setIdentifier] = useState(''); // email
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string>();
 
-  /*const onSubmit = async () => {
-    setError(undefined);
-    try {
-      await login(identifier, password);
-      // Navigate to main explore screen
-      router.replace('/main/explore');
-    } catch (e: any) {
-      setError(e.message || 'Login failed');
-    }
-  };*/
   const onSubmit = async () => {
     setError(undefined);
+
+    // 1) Firebase sign in
+    let cred;
     try {
-      // call Firebase directly here
-      const cred = await signInWithEmailAndPassword(auth, identifier, password);
-      // then create session, etc.
+      cred = await signInWithEmailAndPassword(auth, identifier.trim(), password);
+    } catch (fbErr: any) {
+      console.error('Firebase sign-in error', fbErr);
+      // fbErr.code is defined for FirebaseAuthError
+      if (fbErr.code === 'auth/user-not-found') {
+        return setError('No user found with that email.');
+      }
+      if (fbErr.code === 'auth/wrong-password') {
+        return setError('Wrong password.');
+      }
+      return setError(fbErr.message || 'Authentication error.');
+    }
+
+    // 2) Backend session creation
+    try {
       const idToken = await cred.user.getIdToken();
       await createSession(idToken);
-      router.replace('/main/explore');
-    } catch (err: any) {
-      console.log('Firebase error code:', err.code);
-      console.log(err.message);
-      if (err.code === 'auth/user-not-found') {
-        setError('No user found with that email.');
-      } else if (err.code === 'auth/wrong-password') {
-        setError('Wrong password.');
-      } else {
-        setError('Login failed, please try again.');
-      }
+    } catch (apiErr: any) {
+      console.error('Backend session error', apiErr);
+      // no apiErr.code, so show message
+      return setError(apiErr.message || 'Server error, please try again.');
     }
+
+    // 3) success!
+    router.replace('/main/explore');
   };
+
   return (
     <ImageBackground
       source={require('../../assets/images/login.png')}
@@ -80,7 +79,7 @@ export default function LoginScreen() {
         <View style={styles.inputField}>
           <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
           <TextInput
-            placeholder="Username / Email"
+            placeholder="Email"
             placeholderTextColor="#aaa"
             style={styles.input}
             value={identifier}
@@ -112,7 +111,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>  
+          <TouchableOpacity onPress={() => router.push('/matchmaker/how-it-works')}>
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
@@ -130,18 +129,17 @@ export default function LoginScreen() {
 
         <View style={styles.signupContainer}>
           <Text style={styles.signupPrompt}>Don’t have an account?</Text>
-          <TouchableOpacity onPress={() => router.push('/login&signup/signup')}> 
+          <TouchableOpacity onPress={() => router.push('/login&signup/signup')}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
-
+      
         <View style={styles.socialContainer}>
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
             <Text style={styles.continueWith}>Continue with</Text>
             <View style={styles.divider} />
           </View>
-
           <View style={styles.socialRow}>
             <AntDesign name="apple1" size={26} color="black" />
             <AntDesign name="instagram" size={26} color="#E1306C" />
@@ -151,7 +149,10 @@ export default function LoginScreen() {
         </View>
       </View>
     </ImageBackground>
+    
+
   );
+  
 }
 
 const styles = StyleSheet.create({

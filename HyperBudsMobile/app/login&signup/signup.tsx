@@ -1,4 +1,4 @@
-// app/loging&signup/signup.tsx
+// app/login&signup/signup.tsx
 
 import React, { useState } from 'react';
 import {
@@ -8,11 +8,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather, AntDesign } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { auth as firebaseAuth } from '../../src/firebase';
+import { registerUser, createSession } from '../../src/api/auth';
 
 export const screenOptions = {
   headerShown: false,
@@ -20,7 +24,41 @@ export const screenOptions = {
 
 export default function SignupScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
+  const [phone, setPhone]       = useState('');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm]   = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  const handleSignup = async () => {
+    if (password !== confirm) {
+      setError('Passwords do not match');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+
+    try {
+      // 1) Create Firebase user
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      // 2) Send email verification
+      await sendEmailVerification(cred.user);
+      // 3) Register in backend
+      await registerUser({ username, email, phone, password });
+      // 4) Create backend session
+      const idToken = await cred.user.getIdToken();
+      await createSession(idToken);
+      // 5) Navigate into the app
+      router.replace('/main/explore');
+    } catch (err: any) {
+      console.error('🔴 Signup error detail:', err);
+      setError(err.message ?? 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ImageBackground
@@ -29,17 +67,19 @@ export default function SignupScreen() {
       resizeMode="cover"
     >
       <View style={styles.overlay}>
-        {/* Title */}
         <Text style={styles.title}>Sign Up</Text>
-
         <View style={styles.formWrapper}>
+
           {/* Username */}
           <View style={styles.inputField}>
             <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
               placeholder="Username"
               placeholderTextColor="#aaa"
+              autoCapitalize="none"           // ← no forced capitalization
               style={styles.input}
+              value={username}
+              onChangeText={setUsername}
             />
           </View>
 
@@ -49,10 +89,12 @@ export default function SignupScreen() {
             <TextInput
               placeholder="Phone Number"
               placeholderTextColor="#aaa"
-              keyboardType="phone-pad"
+              keyboardType="numeric"          // ← numeric keyboard
               style={styles.input}
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={val =>
+                setPhone(val.replace(/[^0-9]/g, '')) // ← allow only digits
+              }
             />
           </View>
 
@@ -63,7 +105,10 @@ export default function SignupScreen() {
               placeholder="Email"
               placeholderTextColor="#aaa"
               keyboardType="email-address"
+              autoCapitalize="none"           // ← no forced capitalization
               style={styles.input}
+              value={email}
+              onChangeText={setEmail}
             />
           </View>
 
@@ -75,10 +120,12 @@ export default function SignupScreen() {
               placeholderTextColor="#aaa"
               secureTextEntry
               style={styles.input}
+              value={password}
+              onChangeText={setPassword}
             />
           </View>
 
-          {/* Confirm */}
+          {/* Confirm Password */}
           <View style={styles.inputField}>
             <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
             <TextInput
@@ -86,12 +133,18 @@ export default function SignupScreen() {
               placeholderTextColor="#aaa"
               secureTextEntry
               style={styles.input}
+              value={confirm}
+              onChangeText={setConfirm}
             />
           </View>
 
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
           {/* Sign Up Button */}
-          <TouchableOpacity style={styles.signupButton}
-          onPress={() => router.replace('/registration/onboarding')}
+          <TouchableOpacity
+            style={styles.signupButton}
+            onPress={handleSignup}
+            disabled={loading}
           >
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
@@ -99,7 +152,10 @@ export default function SignupScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.gradientButton}
             >
-              <Text style={styles.signupText}>Sign Up</Text>
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.signupText}>Sign Up</Text>
+              }
             </LinearGradient>
           </TouchableOpacity>
 
@@ -184,5 +240,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 20,
+  },
+  error: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 10,
   },
 });

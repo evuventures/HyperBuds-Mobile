@@ -1,14 +1,10 @@
 // src/firebase.ts
 
 import { initializeApp } from 'firebase/app';
-import {
-  initializeAuth,
-  getReactNativePersistence,
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuth } from 'firebase/auth';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
-// Your Firebase config
+// Your Firebase web app configuration
 const firebaseConfig = {
   apiKey: 'AIzaSyAeZ3F5GCJgPkhzzlQeETf2CegRwsDb1A8',
   authDomain: 'hyperbuds-69863.firebaseapp.com',
@@ -19,16 +15,18 @@ const firebaseConfig = {
   measurementId: 'G-83LMS4J8EK',
 };
 
-// Initialize core
+// 1) Initialize the core Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// 2) Initialize Auth with default (in‑memory) persistence
+//    This means the user will be logged out on app restart,
+//    but avoids the missing‑export error you’re seeing.
+export const auth = getAuth(app);
 
-// Optional: only init analytics if supported (no RN warnings)
+// 3) Optionally initialize Analytics if supported
 export let analytics: ReturnType<typeof getAnalytics> | null = null;
-isSupported().then(supported => {
-  if (supported) analytics = getAnalytics(app);
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+  }
 });

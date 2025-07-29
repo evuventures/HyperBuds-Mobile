@@ -25,74 +25,72 @@ async function safeFetch<T>(
   endpoint: string,
   options: RequestInit
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
+  const url = `${BASE_URL}${endpoint}`;
+  const res = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
-    credentials: 'include', // for session cookies
+    credentials: 'include',
   });
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(json.message || res.statusText);
-  }
-  return json;
-}
 
-// Register a new user
-export function registerUser(
-  data: RegisterPayload
-): Promise<{ message: string; user: User }> {
-  return safeFetch<{ message: string; user: User }>(
-    '/register',
-    {
-      method: 'POST',
-      body: JSON.stringify(data),
+  const contentType = res.headers.get('Content-Type') || '';
+  let text = '';
+  let data: any = {};
+
+  try {
+    text = await res.text();
+    if (contentType.includes('application/json') && text) {
+      data = JSON.parse(text);
     }
-  );
+  } catch (parseErr) {
+    console.warn(`safeFetch parse error @ ${endpoint}`, parseErr, '\nraw:', text);
+  }
+
+  if (!res.ok) {
+    const msg = data?.message || res.statusText;
+    throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
+
+  return data as T;
 }
 
-// Send forgot-password email
+export function registerUser(
+  payload: RegisterPayload
+): Promise<{ message: string; user: User }> {
+  return safeFetch('/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function forgotPassword(
   email: string
 ): Promise<{ message: string }> {
-  return safeFetch<{ message: string }>(
-    '/forgot-password',
-    {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }
-  );
+  return safeFetch('/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
 }
 
-// Create a session cookie given a Firebase ID token
 export function createSession(
   idToken: string
 ): Promise<{ message: string; user: User }> {
-  return safeFetch<{ message: string; user: User }>(
-    '/session',
-    {
-      method: 'POST',
-      body: JSON.stringify({ idToken }),
-    }
-  );
+  return safeFetch('/session', {
+    method: 'POST',
+    body: JSON.stringify({ idToken }),
+  });
 }
 
-// Retrieve current session (if any)
-export function getSession(
-): Promise<{ message: string; user: User }> {
-  return safeFetch<{ message: string; user: User }>(
-    '/session',
-    { method: 'GET' }
-  );
+export function getSession(): Promise<{ message: string; user: User }> {
+  return safeFetch('/session', {
+    method: 'GET',
+  });
 }
 
-// Logout (delete session cookie)
-export function logout(
-): Promise<{ message: string }> {
-  return safeFetch<{ message: string }>(
-    '/session',
-    { method: 'DELETE' }
-  );
+export function logout(): Promise<{ message: string }> {
+  return safeFetch('/session', {
+    method: 'DELETE',
+  });
 }
