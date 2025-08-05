@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-// (you can remove `useAuth` if you’re not using it here)
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../src/firebase';
 import { createSession } from '../../src/api/auth';
@@ -26,38 +26,45 @@ export default function LoginScreen() {
   const [identifier, setIdentifier] = useState(''); // email
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async () => {
-    setError(undefined);
+    setError(null);
+    setLoading(true);
 
-    // 1) Firebase sign in
     let cred;
     try {
       cred = await signInWithEmailAndPassword(auth, identifier.trim(), password);
     } catch (fbErr: any) {
       console.error('Firebase sign-in error', fbErr);
-      // fbErr.code is defined for FirebaseAuthError
       if (fbErr.code === 'auth/user-not-found') {
-        return setError('No user found with that email.');
+        setError('No user found with that email.');
+      } else if (fbErr.code === 'auth/wrong-password') {
+        setError('Wrong password.');
+      } else if (fbErr.code) {
+        setError(`Auth error: ${fbErr.code}`);
+      } else {
+        setError(fbErr.message || 'Authentication error.');
       }
-      if (fbErr.code === 'auth/wrong-password') {
-        return setError('Wrong password.');
-      }
-      return setError(fbErr.message || 'Authentication error.');
+      setLoading(false);
+      return;
     }
 
-    // 2) Backend session creation
+    // Create backend session
     try {
       const idToken = await cred.user.getIdToken();
+      //console.log('🔥 Firebase ID Token:', idToken);
       await createSession(idToken);
     } catch (apiErr: any) {
       console.error('Backend session error', apiErr);
-      // no apiErr.code, so show message
-      return setError(apiErr.message || 'Server error, please try again.');
+      setError(apiErr.message || 'Server error, please try again.');
+      setLoading(false);
+      return;
     }
 
-    // 3) success!
+    setLoading(false);
     router.replace('/main/explore');
   };
 
@@ -86,6 +93,7 @@ export default function LoginScreen() {
             onChangeText={setIdentifier}
             autoCapitalize="none"
             keyboardType="email-address"
+            importantForAutofill="yes"
           />
         </View>
 
@@ -94,11 +102,20 @@ export default function LoginScreen() {
           <TextInput
             placeholder="Password"
             placeholderTextColor="#aaa"
-            secureTextEntry
-            style={styles.input}
+            secureTextEntry={!showPassword}
+            style={[styles.input, { paddingRight: 40 }]}
             value={password}
             onChangeText={setPassword}
+            autoCapitalize="none"
+            importantForAutofill="yes"
           />
+          <TouchableOpacity
+            onPress={() => setShowPassword((p) => !p)}
+            style={styles.eyeButton}
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          >
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.row}>
@@ -111,19 +128,28 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/matchmaker/how-it-works')}>
+          <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={onSubmit}>
+        <TouchableOpacity
+          style={styles.loginButton}
+          onPress={onSubmit}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
           <LinearGradient
             colors={['#3B82F6', '#9333EA']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.loginGradient}
           >
-            <Text style={styles.loginText}>Log In</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginText}>Log In</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -133,13 +159,14 @@ export default function LoginScreen() {
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
-      
+
         <View style={styles.socialContainer}>
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
             <Text style={styles.continueWith}>Continue with</Text>
             <View style={styles.divider} />
           </View>
+
           <View style={styles.socialRow}>
             <AntDesign name="apple1" size={26} color="black" />
             <AntDesign name="instagram" size={26} color="#E1306C" />
@@ -149,10 +176,7 @@ export default function LoginScreen() {
         </View>
       </View>
     </ImageBackground>
-    
-
   );
-  
 }
 
 const styles = StyleSheet.create({
@@ -180,9 +204,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 15,
     backgroundColor: '#fff',
+    position: 'relative',
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, fontSize: 16, color: '#000' },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   rememberRow: { flexDirection: 'row', alignItems: 'center' },
   rememberText: { marginLeft: 5, marginRight: 10, color: '#333' },

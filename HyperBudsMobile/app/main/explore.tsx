@@ -1,5 +1,6 @@
 // app/main/explore.tsx
-import React, { ComponentProps } from 'react';
+
+import React, { useEffect, useState, ComponentProps } from 'react';
 import {
   SafeAreaView,
   View,
@@ -12,12 +13,42 @@ import {
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '../../src/firebase'; // adjust if your path differs
 
 // Exact union type of Ionicons names
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export default function Explore() {
   const router = useRouter();
+  const [username, setUsername] = useState<string | null>(null);
+  const [loadingName, setLoadingName] = useState(true);
+
+  // fallback derivation from Firebase user
+  const deriveFallback = (user: User) => {
+    if (user.displayName) return user.displayName;
+    if (user.email) return user.email.split('@')[0];
+    return 'there';
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async user => {
+      if (!user) {
+        setUsername(null);
+        setLoadingName(false);
+        // redirect to login if unauthenticated
+        router.replace('/login&signup/login');
+        return;
+      }
+
+     
+
+      setUsername(deriveFallback(user));
+      setLoadingName(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const features: { key: string; icon: IoniconName; label: string }[] = [
     { key: 'matches',        icon: 'star',               label: 'Matches' },
@@ -49,7 +80,13 @@ export default function Explore() {
         <View style={styles.welcomeContainer}>
           <Image source={require('../../assets/images/avatar.png')} style={styles.welcomeAvatar} />
           <View style={styles.welcomeTextContainer}>
-            <Text style={styles.welcomeTitle}>Welcome Sam_12!</Text>
+            <Text style={styles.welcomeTitle}>
+              {loadingName
+                ? 'Welcome!'
+                : username
+                ? `Welcome ${username}!`
+                : 'Welcome!'}
+            </Text>
             <Text style={styles.welcomeSubtitle}>Ready to collab?</Text>
           </View>
           <Ionicons name="arrow-forward" size={24} color="#9333EA" />

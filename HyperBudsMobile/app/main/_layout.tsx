@@ -1,4 +1,5 @@
 // app/main/_layout.tsx
+
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
@@ -35,10 +36,12 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
-        name="message"
+        name="messages"           // ← must match your folder name
         options={{
           title: 'Messages',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="message-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="message-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -51,3 +54,4 @@ export default function MainLayout() {
     </Tabs>
   );
 }
+``

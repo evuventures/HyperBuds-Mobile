@@ -31,6 +31,8 @@ export default function SignupScreen() {
   const [confirm, setConfirm]   = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSignup = async () => {
     if (password !== confirm) {
@@ -76,7 +78,7 @@ export default function SignupScreen() {
             <TextInput
               placeholder="Username"
               placeholderTextColor="#aaa"
-              autoCapitalize="none"           // ← no forced capitalization
+              autoCapitalize="none"
               style={styles.input}
               value={username}
               onChangeText={setUsername}
@@ -89,12 +91,10 @@ export default function SignupScreen() {
             <TextInput
               placeholder="Phone Number"
               placeholderTextColor="#aaa"
-              keyboardType="numeric"          // ← numeric keyboard
+              keyboardType="numeric"
               style={styles.input}
               value={phone}
-              onChangeText={val =>
-                setPhone(val.replace(/[^0-9]/g, '')) // ← allow only digits
-              }
+              onChangeText={val => setPhone(val.replace(/[^0-9]/g, ''))}
             />
           </View>
 
@@ -105,7 +105,7 @@ export default function SignupScreen() {
               placeholder="Email"
               placeholderTextColor="#aaa"
               keyboardType="email-address"
-              autoCapitalize="none"           // ← no forced capitalization
+              autoCapitalize="none"
               style={styles.input}
               value={email}
               onChangeText={setEmail}
@@ -118,11 +118,19 @@ export default function SignupScreen() {
             <TextInput
               placeholder="Password"
               placeholderTextColor="#aaa"
-              secureTextEntry
-              style={styles.input}
+              secureTextEntry={!showPassword}
+              style={[styles.input, { paddingRight: 40 }]}
               value={password}
               onChangeText={setPassword}
+              autoCapitalize="none"
             />
+            <TouchableOpacity
+              onPress={() => setShowPassword(p => !p)}
+              style={styles.eyeButton}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
+            </TouchableOpacity>
           </View>
 
           {/* Confirm Password */}
@@ -131,11 +139,19 @@ export default function SignupScreen() {
             <TextInput
               placeholder="Confirm Password"
               placeholderTextColor="#aaa"
-              secureTextEntry
-              style={styles.input}
+              secureTextEntry={!showConfirm}
+              style={[styles.input, { paddingRight: 40 }]}
               value={confirm}
               onChangeText={setConfirm}
+              autoCapitalize="none"
             />
+            <TouchableOpacity
+              onPress={() => setShowConfirm(c => !c)}
+              style={styles.eyeButton}
+              accessibilityLabel={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
+            >
+              <Feather name={showConfirm ? 'eye-off' : 'eye'} size={20} color="#555" />
+            </TouchableOpacity>
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -214,9 +230,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     width: '90%',
     alignSelf: 'center',
+    position: 'relative',
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, fontSize: 16, color: '#000' },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   signupButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 15 },
   gradientButton: {
     paddingVertical: 14,
