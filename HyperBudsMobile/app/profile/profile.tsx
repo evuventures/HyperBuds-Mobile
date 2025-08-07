@@ -65,6 +65,16 @@ export default function Profile() {
 
         {/* Buttons */}
         <View style={styles.buttonsRow}>
+          <TouchableOpacity style={styles.editButton} onPress={() => router.push('/registration/buildprofile')}>
+            <LinearGradient
+              colors={['#3B82F6', '#9333EA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.editGradient}
+            >
+              <Text style={styles.editText}>Build Profile</Text>
+            </LinearGradient>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.editButton}>
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
@@ -72,14 +82,14 @@ export default function Profile() {
               end={{ x: 1, y: 0 }}
               style={styles.editGradient}
             >
-              <Text style={styles.editText}>Edit profile</Text>
+              <Text style={styles.editText}>Edit Profile</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsButton}
-            onPress={() => router.push('/profile/settings')}>
-            
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push('/profile/settings')}
+          >
             <Ionicons name="settings-outline" size={24} color="#9333EA" />
-            
           </TouchableOpacity>
         </View>
 
@@ -88,8 +98,6 @@ export default function Profile() {
         <Text style={styles.bio}>
           Short bio entry will go here but for now placeholder text to simulate a user's bio description.
         </Text>
-
-  
 
         {/* Trending Post */}
         <Text style={styles.sectionTitle}>Collaboration</Text>
@@ -159,8 +167,8 @@ const styles = StyleSheet.create({
   statCount: { fontSize: 16, fontWeight: '600' },
   statLabel: { fontSize: 12, color: '#666' },
 
-  buttonsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 30 },
-  editButton: { flex: 1, marginRight: 10, borderRadius: 10, overflow: 'hidden' },
+  buttonsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
+  editButton: { flex: 1, marginHorizontal: 5, borderRadius: 10, overflow: 'hidden' },
   editGradient: { paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
   editText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   settingsButton: { padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#9333EA' },
@@ -168,10 +176,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 10 },
 
   bio: { fontSize: 14, color: '#333', marginBottom: 20 },
-
-  galleryRow: { marginBottom: 20 },
-  galleryPlaceholder: { width: 120, height: 80, backgroundColor: '#ddd', borderRadius: 10, marginRight: 10 },
-  galleryMore: { justifyContent: 'center', alignItems: 'center' },
 
   card: { backgroundColor: '#fff', borderRadius: 10, overflow: 'hidden', marginBottom: 30, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5, elevation: 3 },
   cardImagePlaceholder: { width: '100%', height: 180, backgroundColor: '#ddd' },
@@ -190,8 +194,6 @@ const styles = StyleSheet.create({
   viewersCountSmall: { color: '#fff', fontSize: 12, fontWeight: '600', marginRight: 4 },
   viewersLabelSmall: { color: '#fff', fontSize: 12, fontWeight: '600' },
   statTextSmall: { fontSize: 12, marginHorizontal: 4 },
-
-  cardDivider: { height: 1, backgroundColor: '#eee' },
 
   tagRow: { paddingVertical: 10 },
   tag: { backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 6, marginRight: 10 },
