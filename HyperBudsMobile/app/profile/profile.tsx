@@ -1,5 +1,5 @@
 // app/main/profile.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { useRouter } from 'expo-router';
 import {
@@ -13,12 +13,89 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { auth as firebaseAuth } from '../../src/firebase';
 
 const { width } = Dimensions.get('window');
 const niches = ['Musician', 'Makeup Artist', 'Acting', 'Gaming', 'Dancing', 'Content Creator'];
 
+// Expect your backend to expose an authenticated endpoint that returns the current user
+// e.g. GET `${API_BASE}/users/me` -> { id, username, email, ... }
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+type MeResponse = {
+  id: string;
+  username?: string;
+  email?: string;
+};
+
 export default function Profile() {
   const router = useRouter();
+
+  const [username, setUsername] = useState<string>('');
+  const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const user = firebaseAuth.currentUser;
+        if (!user) {
+          throw new Error('Not signed in');
+        }
+
+        const idToken = await user.getIdToken();
+        if (!API_BASE) {
+          throw new Error('Missing EXPO_PUBLIC_API_BASE_URL');
+        }
+
+        const res = await fetch(`${API_BASE}/users/me`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            Accept: 'application/json',
+          },
+        });
+
+        const text = await res.text();
+        if (text.trim().startsWith('<!DOCTYPE')) {
+          throw new Error('Expected JSON from API but got HTML. Check API base URL.');
+        }
+        const data: MeResponse = JSON.parse(text);
+        if (!res.ok) {
+          throw new Error((data as any)?.error || 'Failed to load profile');
+        }
+
+        const fallback =
+          user.displayName || user.email?.split('@')[0] || 'user';
+        const name = data.username?.trim() || fallback;
+
+        if (isMounted) setUsername(name);
+      } catch (e: any) {
+        if (isMounted) {
+          setProfileError(e.message);
+          const user = firebaseAuth.currentUser;
+          const fallback = user?.displayName || user?.email?.split('@')[0] || 'user';
+          setUsername(fallback);
+        }
+      } finally {
+        if (isMounted) setLoadingProfile(false);
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleText = username
+    ? username.startsWith('@')
+      ? username
+      : `@${username}`
+    : 'Username';
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -34,18 +111,11 @@ export default function Profile() {
         <View style={styles.avatar} />
 
         {/* Username & Role */}
-        <Text style={styles.username}>@LamaRockStar</Text>
+        <Text style={styles.username}>{loadingProfile ? 'Loading…' : handleText}</Text>
         <Text style={styles.role}>Influencer & Market Strategist</Text>
-
-        {/* Social Links */}
-        <View style={styles.socialLinks}>
-          <Ionicons name="at" size={16} color="#666" />
-          <Text style={styles.socialText}>lam_lama</Text>
-          <Ionicons name="logo-instagram" size={16} color="#666" style={styles.socialIcon} />
-          <Text style={styles.socialText}>lamasRule12</Text>
-          <Ionicons name="logo-twitter" size={16} color="#666" style={styles.socialIcon} />
-          <Text style={styles.socialText}>LamaRocks</Text>
-        </View>
+        {profileError ? (
+          <Text style={styles.errorNotice}>Profile: {profileError}</Text>
+        ) : null}
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -65,7 +135,10 @@ export default function Profile() {
 
         {/* Buttons */}
         <View style={styles.buttonsRow}>
-          <TouchableOpacity style={styles.editButton} onPress={() => router.push('/registration/buildprofile')}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => router.push('/registration/buildprofile')}
+          >
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
               start={{ x: 0, y: 0 }}
@@ -158,10 +231,7 @@ const styles = StyleSheet.create({
   username: { fontSize: 20, fontWeight: '600', textAlign: 'center' },
   role: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 10 },
 
-  socialLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  socialIcon: { marginHorizontal: 5 },
-  socialText: { fontSize: 12, color: '#666' },
-
+  errorNotice: { textAlign: 'center', color: 'red', marginBottom: 8 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
   statItem: { alignItems: 'center' },
   statCount: { fontSize: 16, fontWeight: '600' },
