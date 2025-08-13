@@ -1,6 +1,5 @@
 // app/main/profile/setting.tsx
-import React, { useState } from 'react';
-
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -13,12 +12,77 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { auth as firebaseAuth } from '../../src/firebase';
 
 const { width } = Dimensions.get('window');
+
+// Optional backend base URL; set EXPO_PUBLIC_API_BASE_URL in env for API load
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+type MeResponse = {
+  id: string;
+  username?: string;
+  email?: string;
+  avatarUrl?: string;
+};
 
 export default function SettingScreen() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  // Username from API (with fallback to Firebase)
+  const [username, setUsername] = useState<string>('');
+  const [loadingName, setLoadingName] = useState<boolean>(true);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadName = async () => {
+      try {
+        const user = firebaseAuth.currentUser;
+        if (!user) throw new Error('Not signed in');
+
+        const fbFallback = user.displayName || user.email?.split('@')[0] || 'user';
+
+        if (API_BASE) {
+          const idToken = await user.getIdToken();
+          const res = await fetch(`${API_BASE}/users/me`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              Accept: 'application/json',
+            },
+          });
+          const text = await res.text();
+          const isJson = text.trim().startsWith('{');
+          const data: MeResponse = isJson ? JSON.parse(text) : {};
+
+          if (!alive) return;
+          setUsername((data.username || '').trim() || fbFallback);
+        } else {
+          if (!alive) return;
+          setUsername(fbFallback);
+        }
+      } catch {
+        const user = firebaseAuth.currentUser;
+        if (!alive) return;
+        if (user) {
+          const fbFallback = user.displayName || user.email?.split('@')[0] || 'user';
+          setUsername(fbFallback);
+        }
+      } finally {
+        if (alive) setLoadingName(false);
+      }
+    };
+
+    loadName();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const displayHandle =
+    username ? (username.startsWith('@') ? username : `@${username}`) : '@user';
 
   const settings = [
     { key: 'views', label: 'Profile Views', icon: <Ionicons name="checkmark-circle-outline" size={24} color="#9333EA" /> },
@@ -42,7 +106,7 @@ export default function SettingScreen() {
         {/* Profile Header */}
         <View style={styles.headerSection}>
           <View style={styles.avatarPlaceholder} />
-          <Text style={styles.name}>Sam H. Carter</Text>
+          <Text style={styles.name}>{loadingName ? 'Loading…' : displayHandle}</Text>
           <Text style={styles.role}>Influencer</Text>
           <TouchableOpacity style={styles.upgradeButton}>
             <Text style={styles.upgradeText}>Upgrade Now - Go Pro</Text>
@@ -56,13 +120,16 @@ export default function SettingScreen() {
             <View key={item.key} style={styles.settingItem}>
               <View style={styles.iconWrapper}>{item.icon}</View>
               <Text style={styles.settingLabel}>{item.label}</Text>
-              {item.key === 'views' || item.key === 'likes' || item.key === 'shares' ? (
+              {(item.key === 'views' ||
+                item.key === 'likes' ||
+                item.key === 'shares' ||
+                item.key === 'privacy' ||
+                item.key === 'terms' ||
+                item.key === 'language' ||
+                item.key === 'help' ||
+                item.key === 'logout') && (
                 <Ionicons name="chevron-forward" size={20} color="#999" />
-              ) : item.key === 'logout' ? (
-                <Ionicons name="chevron-forward" size={20} color="#999" />
-              ) : item.key === 'privacy' || item.key === 'terms' || item.key === 'language' || item.key === 'help' ? (
-                <Ionicons name="chevron-forward" size={20} color="#999" />
-              ) : null}
+              )}
             </View>
           ))}
 
