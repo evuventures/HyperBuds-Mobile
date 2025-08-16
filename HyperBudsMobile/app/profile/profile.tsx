@@ -217,7 +217,13 @@ export default function Profile() {
 
         {/* Buttons */}
         <View style={styles.buttonsRow}>
-          <TouchableOpacity style={styles.editButton} onPress={() => router.push('/registration/buildprofile')}>
+        <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => {
+              console.log('Navigating to /registration/buildprofile');
+              router.push('/registration/buildprofile');
+            }}
+          >
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
               start={{ x: 0, y: 0 }}
