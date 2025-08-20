@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "expo": "^53.0.20",
+    "react-native-dotenv": "^3.4.11",
     "react-native-swiper": "^1.6.0"
   }
 }

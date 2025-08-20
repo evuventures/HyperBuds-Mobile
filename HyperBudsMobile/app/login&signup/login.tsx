@@ -1,6 +1,5 @@
 // app/login&signup/login.tsx
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,9 +12,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../src/firebase';
-import { createSession } from '../../src/api/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Network from 'expo-network'; // 👈 new import
 
 export const screenOptions = {
   headerShown: false,
@@ -30,42 +28,67 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [apiUrl, setApiUrl] = useState<string | null>(null); // 👈 dynamic API URL
+
+  // 👇 Detect local IP when the screen mounts
+  useEffect(() => {
+    const fetchIp = async () => {
+      try {
+        const ip = await Network.getIpAddressAsync();
+        setApiUrl(`http://${ip}:4000`); // 👈 update port if your backend uses another
+      } catch (err) {
+        console.error("Failed to detect local IP:", err);
+      }
+    };
+    fetchIp();
+  }, []);
+
   const onSubmit = async () => {
+    if (!apiUrl) {
+      setError("Backend not ready, please wait…");
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
-    let cred;
     try {
-      cred = await signInWithEmailAndPassword(auth, identifier.trim(), password);
-    } catch (fbErr: any) {
-      console.error('Firebase sign-in error', fbErr);
-      if (fbErr.code === 'auth/user-not-found') {
-        setError('No user found with that email.');
-      } else if (fbErr.code === 'auth/wrong-password') {
-        setError('Wrong password.');
-      } else if (fbErr.code) {
-        setError(`Auth error: ${fbErr.code}`);
-      } else {
-        setError(fbErr.message || 'Authentication error.');
+      const res = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: identifier.trim(), password }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError("Invalid email or password.");
+        } else {
+          setError("Login failed. Please try again.");
+        }
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-      return;
-    }
 
-    // Create backend session
-    try {
-      const idToken = await cred.user.getIdToken();
-      //console.log('🔥 Firebase ID Token:', idToken);
-      await createSession(idToken);
-    } catch (apiErr: any) {
-      console.error('Backend session error', apiErr);
-      setError(apiErr.message || 'Server error, please try again.');
-      setLoading(false);
-      return;
-    }
+      const data = await res.json();
 
-    setLoading(false);
-    router.replace('/main/explore');
+      // Store tokens
+      await AsyncStorage.setItem("accessToken", data.accessToken);
+      await AsyncStorage.setItem("refreshToken", data.refreshToken);
+
+      // Optional: persist email if "Remember me" is checked
+      if (rememberMe) {
+        await AsyncStorage.setItem("rememberedEmail", identifier.trim());
+      } else {
+        await AsyncStorage.removeItem("rememberedEmail");
+      }
+
+      setLoading(false);
+      router.replace("/main/explore");
+    } catch (err: any) {
+      console.error("Login error", err);
+      setError("Server error, please try again.");
+      setLoading(false);
+    }
   };
 
   return (
