@@ -1,5 +1,4 @@
 // app/login&signup/signup.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -12,31 +11,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
-import {
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-} from 'firebase/auth';
-import { auth as firebaseAuth } from '../../src/firebase';
-import { registerUser, createSession } from '../../src/api/auth';
 
 export const screenOptions = { headerShown: false };
 
 export default function SignupScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
-  const [phone, setPhone]       = useState('');
-  const [email, setEmail]       = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm]   = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm]   = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const apiUrl = 'http://10.0.0.119:3000'; // Change to your LAN IP
 
   const validateInputs = () => {
     if (!username.trim()) return 'Username is required';
@@ -53,44 +47,28 @@ export default function SignupScreen() {
       return;
     }
 
-    setError(null);
     setLoading(true);
+    setError(null);
 
     try {
-      // 1) Create Firebase user
-      const cred = await createUserWithEmailAndPassword(
-        firebaseAuth,
-        email,
-        password
-      );
+      const response = await fetch(`${apiUrl}/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-      // 2) Send email verification
-      await sendEmailVerification(cred.user);
+      const data = await response.json();
 
-      // 3) Register in backend
-      await registerUser({ username, email, phone, password });
-
-      // 4) Create backend session
-      const idToken = await cred.user.getIdToken();
-      await createSession(idToken);
-
-      // 5) Navigate
-      router.replace('/main/explore');
-    } catch (err: any) {
-      console.error('🔴 Signup error detail:', err);
-
-      let message = 'Something went wrong';
-      if (err.code === 'auth/email-already-in-use') {
-        message = 'This email is already registered';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Invalid email address';
-      } else if (err.code === 'auth/weak-password') {
-        message = 'Password is too weak';
-      } else if (err.message) {
-        message = err.message;
+      if (!response.ok) {
+        setError(data?.error || 'Signup failed');
+        return;
       }
 
-      setError(message);
+      // Success: user is created
+      router.replace('/main/explore');
+    } catch (err) {
+      console.error('Signup error:', err);
+      setError('Server error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -107,13 +85,9 @@ export default function SignupScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-            keyboardShouldPersistTaps="handled"
-          >
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <Text style={styles.title}>Sign Up</Text>
             <View style={styles.formWrapper}>
-              {/* Username */}
               <View style={styles.inputField}>
                 <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -126,7 +100,6 @@ export default function SignupScreen() {
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.inputField}>
                 <Feather name="phone" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -135,11 +108,10 @@ export default function SignupScreen() {
                   keyboardType="numeric"
                   style={styles.input}
                   value={phone}
-                  onChangeText={val => setPhone(val.replace(/[^0-9]/g, ''))}
+                  onChangeText={(val) => setPhone(val.replace(/[^0-9]/g, ''))}
                 />
               </View>
 
-              {/* Email */}
               <View style={styles.inputField}>
                 <Feather name="mail" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -153,7 +125,6 @@ export default function SignupScreen() {
                 />
               </View>
 
-              {/* Password */}
               <View style={styles.inputField}>
                 <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -166,14 +137,13 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  onPress={() => setShowPassword(p => !p)}
+                  onPress={() => setShowPassword((p) => !p)}
                   style={styles.eyeButton}
                 >
                   <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
                 </TouchableOpacity>
               </View>
 
-              {/* Confirm Password */}
               <View style={styles.inputField}>
                 <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -186,17 +156,15 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  onPress={() => setShowConfirm(c => !c)}
+                  onPress={() => setShowConfirm((c) => !c)}
                   style={styles.eyeButton}
                 >
                   <Feather name={showConfirm ? 'eye-off' : 'eye'} size={20} color="#555" />
                 </TouchableOpacity>
               </View>
 
-              {/* Error */}
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              {/* Sign Up Button */}
               <TouchableOpacity
                 style={styles.signupButton}
                 onPress={handleSignup}
@@ -208,13 +176,14 @@ export default function SignupScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.gradientButton}
                 >
-                  {loading
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.signupText}>Sign Up</Text>}
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.signupText}>Sign Up</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Log In Link */}
               <Text style={styles.loginPrompt}>
                 Already have an account?{' '}
                 <Text
@@ -225,14 +194,12 @@ export default function SignupScreen() {
                 </Text>
               </Text>
 
-              {/* Divider */}
               <View style={styles.dividerRow}>
                 <View style={styles.divider} />
                 <Text style={styles.continueWith}>Continue with</Text>
                 <View style={styles.divider} />
               </View>
 
-              {/* Social Icons */}
               <View style={styles.socialRow}>
                 <AntDesign name="apple1" size={26} color="black" />
                 <AntDesign name="instagram" size={26} color="#E1306C" />
