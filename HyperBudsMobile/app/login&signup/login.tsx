@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Network from 'expo-network'; // 👈 new import
 
 export const screenOptions = {
   headerShown: false,
@@ -21,31 +20,30 @@ export const screenOptions = {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState(''); // email
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const [apiUrl, setApiUrl] = useState<string | null>(null); // 👈 dynamic API URL
+  // ✅ Hardcoded IP for development (matches your setup)
+  const apiUrl = 'http://10.0.0.119:3000';
 
-  // 👇 Detect local IP when the screen mounts
   useEffect(() => {
-    const fetchIp = async () => {
-      try {
-        const ip = await Network.getIpAddressAsync();
-        setApiUrl(`http://${ip}:4000`); // 👈 update port if your backend uses another
-      } catch (err) {
-        console.error("Failed to detect local IP:", err);
+    const loadEmail = async () => {
+      const savedEmail = await AsyncStorage.getItem('rememberedEmail');
+      if (savedEmail) {
+        setIdentifier(savedEmail);
+        setRememberMe(true);
       }
     };
-    fetchIp();
+    loadEmail();
   }, []);
 
   const onSubmit = async () => {
-    if (!apiUrl) {
-      setError("Backend not ready, please wait…");
+    if (!identifier || !password) {
+      setError('Please enter email and password.');
       return;
     }
 
@@ -53,40 +51,32 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch(`${apiUrl}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: identifier.trim(), password }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        if (res.status === 401) {
-          setError("Invalid email or password.");
-        } else {
-          setError("Login failed. Please try again.");
-        }
+        setError(data?.error || 'Login failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      const data = await res.json();
-
-      // Store tokens
-      await AsyncStorage.setItem("accessToken", data.accessToken);
-      await AsyncStorage.setItem("refreshToken", data.refreshToken);
-
-      // Optional: persist email if "Remember me" is checked
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
       if (rememberMe) {
-        await AsyncStorage.setItem("rememberedEmail", identifier.trim());
+        await AsyncStorage.setItem('rememberedEmail', identifier.trim());
       } else {
-        await AsyncStorage.removeItem("rememberedEmail");
+        await AsyncStorage.removeItem('rememberedEmail');
       }
 
       setLoading(false);
-      router.replace("/main/explore");
-    } catch (err: any) {
-      console.error("Login error", err);
-      setError("Server error, please try again.");
+      router.replace('/main/explore');
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Could not connect to server. Make sure your backend is running.');
       setLoading(false);
     }
   };
@@ -116,7 +106,6 @@ export default function LoginScreen() {
             onChangeText={setIdentifier}
             autoCapitalize="none"
             keyboardType="email-address"
-            importantForAutofill="yes"
           />
         </View>
 
@@ -130,12 +119,10 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             autoCapitalize="none"
-            importantForAutofill="yes"
           />
           <TouchableOpacity
             onPress={() => setShowPassword((p) => !p)}
             style={styles.eyeButton}
-            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
           >
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
           </TouchableOpacity>
@@ -168,11 +155,7 @@ export default function LoginScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.loginGradient}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginText}>Log In</Text>
-            )}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginText}>Log In</Text>}
           </LinearGradient>
         </TouchableOpacity>
 
