@@ -1,10 +1,18 @@
 // app/main/_layout.tsx
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
 
 export default function MainLayout() {
+  // Loud mount/unmount logs to verify whether the Tabs layout is loading
+  useEffect(() => {
+    console.log('[MAIN/_layout] mounted');
+    return () => {
+      console.log('[MAIN/_layout] unmounted');
+    };
+  }, []);
+
   return (
     <Tabs
       screenOptions={{
@@ -36,7 +44,7 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
-        name="messages"           // ← must match your folder name
+        name="messages" // must match your folder name
         options={{
           title: 'Messages',
           tabBarIcon: ({ color, size }) => (
@@ -54,4 +62,3 @@ export default function MainLayout() {
     </Tabs>
   );
 }
-``

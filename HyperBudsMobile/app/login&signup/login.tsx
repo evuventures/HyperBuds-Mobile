@@ -1,25 +1,29 @@
-// app/login&signup/login.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ImageBackground,
-  ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ImageBackground, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../src/contexts/AuthContext';
 
-export const screenOptions = {
-  headerShown: false,
+export const screenOptions = { headerShown: false };
+
+// Keep this in sync with your Mac's LAN IP
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://10.0.0.106:3000';
+
+//remover later
+const clearSavedSession = async () => {
+  await AsyncStorage.multiRemove(['user', 'isLoggedIn', 'rememberedEmail']);
+  console.log('✅ Cleared saved session keys');
 };
-
+//Remove later
 export default function LoginScreen() {
   const router = useRouter();
+  const { refresh } = useAuth();
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -27,18 +31,14 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ Hardcoded IP for development (matches your setup)
-  const apiUrl = 'http://10.0.0.119:3000';
-
   useEffect(() => {
-    const loadEmail = async () => {
+    (async () => {
       const savedEmail = await AsyncStorage.getItem('rememberedEmail');
       if (savedEmail) {
         setIdentifier(savedEmail);
         setRememberMe(true);
       }
-    };
-    loadEmail();
+    })();
   }, []);
 
   const onSubmit = async () => {
@@ -51,13 +51,15 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${apiUrl}/login`, {
+      const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: identifier.trim(), password }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch {}
 
       if (!res.ok) {
         setError(data?.error || 'Login failed. Please try again.');
@@ -65,18 +67,29 @@ export default function LoginScreen() {
         return;
       }
 
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      await AsyncStorage.multiSet([
+        ['user', JSON.stringify(data.user ?? {})],
+        ['isLoggedIn', 'true'],
+      ]);
+
       if (rememberMe) {
         await AsyncStorage.setItem('rememberedEmail', identifier.trim());
       } else {
         await AsyncStorage.removeItem('rememberedEmail');
       }
 
+      // Make sure the AuthContext sees the new session BEFORE we navigate
+      await refresh();
+      
       setLoading(false);
       router.replace('/main/explore');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
-      setError('Could not connect to server. Make sure your backend is running.');
+      setError(
+        err?.message?.includes('Network request failed')
+          ? `Could not reach ${API_BASE}. Make sure your phone & computer are on the same Wi-Fi and the server is running.`
+          : 'Could not connect to server. Please try again.'
+      );
       setLoading(false);
     }
   };
@@ -89,6 +102,15 @@ export default function LoginScreen() {
     >
       <View style={styles.container}>
         <View style={styles.headerWrapper}>
+
+        <View style={{ alignItems: 'center', marginTop: 8 }}>
+            <TouchableOpacity onPress={clearSavedSession}>
+              <Text style={{ fontSize: 12, color: '#888', textDecorationLine: 'underline' }}>
+                Clear saved session (dev)
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.loginTitle}>Log In</Text>
         </View>
 
@@ -120,10 +142,7 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             autoCapitalize="none"
           />
-          <TouchableOpacity
-            onPress={() => setShowPassword((p) => !p)}
-            style={styles.eyeButton}
-          >
+          <TouchableOpacity onPress={() => setShowPassword((p) => !p)} style={styles.eyeButton}>
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
           </TouchableOpacity>
         </View>
@@ -143,18 +162,8 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={onSubmit}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#3B82F6', '#9333EA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.loginGradient}
-          >
+        <TouchableOpacity style={styles.loginButton} onPress={onSubmit} disabled={loading} activeOpacity={0.8}>
+          <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.loginGradient}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginText}>Log In</Text>}
           </LinearGradient>
         </TouchableOpacity>
@@ -180,6 +189,9 @@ export default function LoginScreen() {
             <FontAwesome5 name="tiktok" size={24} color="black" />
           </View>
         </View>
+        
+        
+
       </View>
     </ImageBackground>
   );
@@ -190,51 +202,26 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 30, backgroundColor: 'transparent' },
   headerWrapper: { height: 220, justifyContent: 'flex-end', alignItems: 'center' },
   loginTitle: {
-    fontSize: 50,
-    fontWeight: '600',
-    color: '#A855F7',
-    textAlign: 'center',
-    lineHeight: 50,
-    letterSpacing: -2.5,
-    marginBottom: 30,
+    fontSize: 50, fontWeight: '600', color: '#A855F7', textAlign: 'center',
+    lineHeight: 50, letterSpacing: -2.5, marginBottom: 30,
   },
   welcome: { fontSize: 25, fontWeight: '600', textAlign: 'center', marginTop: 50, marginBottom: 25 },
   errorText: { color: 'red', textAlign: 'center', marginBottom: 10 },
   inputField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 15,
-    backgroundColor: '#fff',
-    position: 'relative',
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ccc',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 15,
+    backgroundColor: '#fff', position: 'relative',
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, fontSize: 16, color: '#000' },
-  eyeButton: {
-    position: 'absolute',
-    right: 12,
-    padding: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  eyeButton: { position: 'absolute', right: 12, padding: 4, justifyContent: 'center', alignItems: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   rememberRow: { flexDirection: 'row', alignItems: 'center' },
   rememberText: { marginLeft: 5, marginRight: 10, color: '#333' },
   forgotText: { color: '#2563EB', fontWeight: '500' },
   circle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#6A0DAD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    marginRight: 2,
+    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#6A0DAD',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', marginRight: 2,
   },
   circleChecked: { backgroundColor: '#6A0DAD' },
   loginButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 20 },

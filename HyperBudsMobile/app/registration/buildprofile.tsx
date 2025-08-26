@@ -1,10 +1,11 @@
-//buildprofile.tsx
+// buildprofile.tsx
 import { AntDesign } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   ScrollView,
@@ -15,6 +16,8 @@ import {
   View,
 } from "react-native";
 import Swiper from "react-native-swiper";
+
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.0.106:3000";
 
 export default function BuildProfileScreen() {
   const { width } = Dimensions.get("window");
@@ -64,6 +67,7 @@ export default function BuildProfileScreen() {
   const [bio, setBio] = useState("");
   const swiperRef = useRef<Swiper>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const router = useRouter();
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
@@ -72,7 +76,7 @@ export default function BuildProfileScreen() {
   const [selectedPurposes, setSelectedPurposes] = useState<string[]>([]);
   const [selectedCollabs, setSelectedCollabs] = useState<string[]>([]);
 
-  // --- TOGGLE HELPERS ---
+  // ---------- toggles ----------
   const togglePurpose = (key: string) => {
     setSelectedPurposes((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
@@ -100,22 +104,17 @@ export default function BuildProfileScreen() {
 
   const toggleSubcategory = (category: string, sub: string) => {
     const existing = selectedSubcategories[category] || [];
-    let updated: string[];
-    if (existing.includes(sub)) {
-      updated = existing.filter((s) => s !== sub);
-    } else {
-      updated = [...existing, sub];
-      if (!selectedCategories.includes(category)) {
-        setSelectedCategories((prev) => [...prev, category]);
-      }
+    const updated = existing.includes(sub)
+      ? existing.filter((s) => s !== sub)
+      : [...existing, sub];
+
+    if (!selectedCategories.includes(category)) {
+      setSelectedCategories((prev) => [...prev, category]);
     }
-    setSelectedSubcategories((prev) => ({
-      ...prev,
-      [category]: updated,
-    }));
+    setSelectedSubcategories((prev) => ({ ...prev, [category]: updated }));
   };
 
-  // --- IMAGE PICKER ---
+  // ---------- image picker ----------
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -133,46 +132,101 @@ export default function BuildProfileScreen() {
     }
   };
 
-  // --- SLIDE NAVIGATION ---
+  // ---------- nav ----------
   const handleContinue = () => {
     swiperRef.current?.scrollBy(1, true);
   };
 
-  // --- FINAL SUBMIT ---
-const handleSubmit = async () => {
-  try {
-    const profileData = {
-      avatar,
-      bio,
-      niches: selectedSubcategories,
-      purposes: selectedPurposes,
-      collabs: selectedCollabs,
-      socials: socials.reduce((acc, s) => ({ ...acc, [s.key]: s.value }), {}),
-    };
+  // ---------- net utils ----------
+  const fetchWithTimeout = (url: string, options: RequestInit, ms = 10000) => {
+    return Promise.race([
+      fetch(url, options),
+      new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error("Network timeout")), ms)
+      ),
+    ]) as Promise<Response>;
+  };
 
-    console.log("📤 Sending profile data:", profileData);
+  const ensureAvatarUrl = async (uri: string | null) => {
+    if (!uri) return undefined;
+    if (/^https?:\/\//i.test(uri)) return uri;
 
-    const res = await fetch("http://10.0.0.119:3000/profiles/me", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(profileData),
+    console.log("⏫ Uploading avatar to backend…");
+    const fd = new FormData();
+    fd.append("file", {
+      uri,
+      name: "avatar.jpg",
+      type: "image/jpeg",
+    } as any);
+
+    const r = await fetchWithTimeout(`${API_BASE}/profiles/upload-media`, {
+      method: "POST",
+      body: fd, // do NOT set Content-Type manually
     });
 
-    if (!res.ok) {
-      throw new Error(`Server responded with ${res.status}`);
+    const text = await r.text();
+    let data: any = {};
+    try { data = text ? JSON.parse(text) : {}; } catch {}
+
+    if (!r.ok) {
+      console.log("Upload response:", text);
+      throw new Error(data?.error || `Upload failed (${r.status})`);
     }
+    console.log("✅ Avatar uploaded:", data?.url);
+    return data.url as string;
+  };
 
-    const data = await res.json();
-    console.log("✅ Final profile saved:", data);
+  // ---------- final submit ----------
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      console.log("▶️ Start pressed");
 
-    // Redirect after successful save
-    router.push("/profile/profile");
-  } catch (error) {
-    console.error("❌ Failed to submit profile", error);
-  }
-};
+      const avatarUrl = await ensureAvatarUrl(avatar);
+
+      const nichesArray = Array.from(
+        new Set(Object.values(selectedSubcategories || {}).flat().filter(Boolean))
+      );
+
+      const profileData = {
+        avatar: avatarUrl, // public URL from backend
+        bio,
+        niches: nichesArray,               // array of strings
+        purposes: selectedPurposes,
+        collabs: selectedCollabs,
+        socials: socials.reduce(
+          (acc, s) => ({ ...acc, [s.key]: s.value }),
+          {} as Record<string, string>
+        ),
+      };
+
+      console.log("📤 PUT /profiles/me payload:", profileData);
+
+      const res = await fetchWithTimeout(`${API_BASE}/profiles/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profileData),
+      }, 12000);
+
+      const text = await res.text();
+      let data: any = {};
+      try { data = text ? JSON.parse(text) : {}; } catch {}
+
+      if (!res.ok) {
+        console.log("Server said:", text);
+        throw new Error(data?.message || `Server responded with ${res.status}`);
+      }
+
+      console.log("✅ Final profile saved:", data);
+      router.push("/profile/profile");
+    } catch (error: any) {
+      console.error("❌ Failed to submit profile", error);
+      Alert.alert("Submission error", error?.message || "Network request failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -193,10 +247,7 @@ const handleSubmit = async () => {
 
         <View style={styles.dots}>
           {[0, 1, 2, 3, 4, 5].map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i === currentIndex && styles.activeDot]}
-            />
+            <View key={i} style={[styles.dot, i === currentIndex && styles.activeDot]} />
           ))}
         </View>
       </View>
@@ -212,17 +263,10 @@ const handleSubmit = async () => {
         <View style={styles.container}>
           <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
             <Image
-              source={
-                avatar
-                  ? { uri: avatar }
-                  : require("../../assets/images/avatar.png")
-              }
+              source={avatar ? { uri: avatar } : require("../../assets/images/avatar.png")}
               style={styles.avatar}
             />
-            <Image
-              source={require("../../assets/images/edit.png")}
-              style={styles.editIcon}
-            />
+            <Image source={require("../../assets/images/edit.png")} style={styles.editIcon} />
           </TouchableOpacity>
           <Text style={styles.title}>Build Your Profile</Text>
           <Text style={styles.label}>Short Bio </Text>
@@ -236,34 +280,22 @@ const handleSubmit = async () => {
             style={styles.textArea}
           />
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
               <Text style={styles.buttonText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* SLIDE 2 - Niches */}
-        <ScrollView
-          contentContainerStyle={[styles.container, { alignItems: "stretch" }]}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={[styles.container, { alignItems: "stretch" }]} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Choose Your Niche</Text>
-          <Text style={styles.subtext}>
-            Select your primary category and related sub-niches
-          </Text>
+          <Text style={styles.subtext}>Select your primary category and related sub-niches</Text>
           {Object.entries(categoriesData).map(([category, subs]) => (
             <View key={category} style={styles.categoryBox}>
               <TouchableOpacity
                 onPress={() => {
                   if (expandedCategories.includes(category)) {
-                    setExpandedCategories(
-                      expandedCategories.filter((c) => c !== category)
-                    );
+                    setExpandedCategories(expandedCategories.filter((c) => c !== category));
                   } else {
                     setExpandedCategories([...expandedCategories, category]);
                   }
@@ -272,37 +304,21 @@ const handleSubmit = async () => {
               >
                 <TouchableOpacity onPress={() => toggleCategory(category)}>
                   <View style={styles.checkbox}>
-                    {selectedCategories.includes(category) && (
-                      <View style={styles.checkboxSelected} />
-                    )}
+                    {selectedCategories.includes(category) && <View style={styles.checkboxSelected} />}
                   </View>
                 </TouchableOpacity>
-                <Text
-                  onPress={() => toggleCategory(category)}
-                  style={styles.categoryText}
-                >
+                <Text onPress={() => toggleCategory(category)} style={styles.categoryText}>
                   {category}
                 </Text>
-                <AntDesign
-                  name={
-                    expandedCategories.includes(category) ? "up" : "down"
-                  }
-                  size={18}
-                  color="#666"
-                />
+                <AntDesign name={expandedCategories.includes(category) ? "up" : "down"} size={18} color="#666" />
               </TouchableOpacity>
+
               {expandedCategories.includes(category) && (
                 <View style={styles.subCategoryContainer}>
                   {subs.map((sub, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.subCategoryBox}
-                      onPress={() => toggleSubcategory(category, sub)}
-                    >
+                    <TouchableOpacity key={index} style={styles.subCategoryBox} onPress={() => toggleSubcategory(category, sub)}>
                       <View style={styles.checkbox}>
-                        {selectedSubcategories[category]?.includes(sub) && (
-                          <View style={styles.checkboxSelected} />
-                        )}
+                        {selectedSubcategories[category]?.includes(sub) && <View style={styles.checkboxSelected} />}
                       </View>
                       <Text style={styles.subCategoryText}>{sub}</Text>
                     </TouchableOpacity>
@@ -312,45 +328,25 @@ const handleSubmit = async () => {
             </View>
           ))}
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
               <Text style={styles.buttonText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
 
         {/* SLIDE 3 - Purpose */}
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Purpose of{"\n"}Using Platform</Text>
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              justifyContent: "space-between",
-              marginBottom: -50,
-            }}
-          >
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: -50 }}>
             {purposeOptions.map((item) => (
               <TouchableOpacity
                 key={item.key}
                 onPress={() => togglePurpose(item.key)}
-                style={[
-                  styles.purposeCard,
-                  selectedPurposes.includes(item.key) && styles.cardSelected,
-                ]}
+                style={[styles.purposeCard, selectedPurposes.includes(item.key) && styles.cardSelected]}
               >
                 <View style={styles.cardCheckboxWrapper}>
                   <View style={styles.checkbox}>
-                    {selectedPurposes.includes(item.key) && (
-                      <AntDesign name="check" size={12} color="#000" />
-                    )}
+                    {selectedPurposes.includes(item.key) && <AntDesign name="check" size={12} color="#000" />}
                   </View>
                 </View>
                 <Image source={item.icon} style={styles.purposeIcon} />
@@ -359,12 +355,7 @@ const handleSubmit = async () => {
             ))}
           </View>
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
               <Text style={styles.buttonText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -378,16 +369,11 @@ const handleSubmit = async () => {
               <TouchableOpacity
                 key={item.key}
                 onPress={() => toggleCollab(item.key)}
-                style={[
-                  styles.collabCard,
-                  selectedCollabs.includes(item.key) && styles.cardSelected,
-                ]}
+                style={[styles.collabCard, selectedCollabs.includes(item.key) && styles.cardSelected]}
               >
                 <View style={styles.collabCheckboxWrapper}>
                   <View style={styles.checkbox}>
-                    {selectedCollabs.includes(item.key) && (
-                      <AntDesign name="check" size={12} color="#000" />
-                    )}
+                    {selectedCollabs.includes(item.key) && <AntDesign name="check" size={12} color="#000" />}
                   </View>
                 </View>
                 <Image source={item.icon} style={styles.purposeIcon} />
@@ -396,29 +382,19 @@ const handleSubmit = async () => {
             ))}
           </View>
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
               <Text style={styles.buttonText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* SLIDE 5 - Socials */}
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Connect your{"\n"}Socials</Text>
           <View style={{ width: "100%", gap: 12, marginTop: 20 }}>
             {socials.map((item, idx) => (
               <View key={item.key} style={styles.socialRow}>
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-                >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <Image source={item.icon} style={styles.socialIcon} />
                   <Text style={styles.socialLabel}>{item.label}</Text>
                 </View>
@@ -436,12 +412,7 @@ const handleSubmit = async () => {
             ))}
           </View>
           <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
               <Text style={styles.buttonText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -450,21 +421,16 @@ const handleSubmit = async () => {
         {/* SLIDE 6 - Done */}
         <View style={styles.container}>
           <Text style={styles.title}>Registration{"\n"}complete</Text>
-          <Image
-            source={require("../../assets/images/check.png")}
-            style={styles.checkIcon}
-          />
-          <Text style={styles.completeText}>
-            Thank you for{"\n"}registering!
-          </Text>
-          <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-            <LinearGradient
-              colors={["#3B82F6", "#9333EA"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
-              <Text style={styles.buttonText}>Start</Text>
+          <Image source={require("../../assets/images/check.png")} style={styles.checkIcon} />
+          <Text style={styles.completeText}>Thank you for{"\n"}registering!</Text>
+
+          <TouchableOpacity
+            style={[styles.button, submitting && { opacity: 0.7 }]}
+            onPress={submitting ? undefined : handleSubmit}
+            disabled={submitting}
+          >
+            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
+              <Text style={styles.buttonText}>{submitting ? "Submitting…" : "Start"}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -486,15 +452,8 @@ const styles = StyleSheet.create({
   gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', borderRadius: 10 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   placeholderText: { fontSize: 20, color: '#999', marginBottom: 20 },
-  backButton: {
-    position: 'absolute',
-    top: 0,
-    left: 10,
-    zIndex: 10,
-    padding: 20,
-  },
-  
-  
+  backButton: { position: 'absolute', top: 0, left: 10, zIndex: 10, padding: 20 },
+
   categoryBox: { width: '100%', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
   categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   categoryText: { flex: 1, color: '#9333EA', fontSize: 16, fontWeight: '500' },
@@ -503,96 +462,40 @@ const styles = StyleSheet.create({
   subCategoryText: { fontSize: 14, color: '#444' },
   checkbox: { width: 18, height: 18, borderWidth: 1, borderColor: '#aaa', backgroundColor: '#fff', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   checkboxSelected: { width: 10, height: 10, backgroundColor: '#9333EA', borderRadius: 2 },
-  //dots: { position: 'absolute', top: 60, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', zIndex: 99, gap: 8 },
+
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ccc' },
   activeDot: { backgroundColor: '#A855F7' },
+
   purposeCard: { width: '47%', aspectRatio: 1, borderWidth: 1, borderColor: '#aaa', borderRadius: 10, padding: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 15, position: 'relative' },
   purposeIcon: { width: 40, height: 40, marginBottom: 10, resizeMode: 'contain' },
   purposeText: { fontSize: 12, textAlign: 'center', color: '#000' },
   cardSelected: { borderColor: '#9333EA', borderWidth: 2 },
-  
-  collabContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 30,
-  },
-  collabCard: {
-    width: '30%',
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderColor: '#aaa',
-    borderRadius: 10,
-    padding: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  collabCheckboxWrapper: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 2,
-  },
-  socialRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: '#fff',
-  },
-  socialIcon: {
-    width: 22,
-    height: 22,
-    resizeMode: 'contain',
-  },
-  socialLabel: {
-    fontSize: 15,
-    color: '#000',
-  },
-  checkIcon: {
-    width: 100,
-    height: 100,
-    marginVertical: 30,
-    resizeMode: 'contain',
-  },
-  completeText: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#000',
-    marginBottom: 40,
-  },
+
+  collabContainer: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 30 },
+  collabCard: { width: '30%', aspectRatio: 1, borderWidth: 1, borderColor: '#aaa', borderRadius: 10, padding: 10, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  collabCheckboxWrapper: { position: 'absolute', top: 8, left: 8, zIndex: 2 },
+
+  socialRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#ccc', borderRadius: 10, padding: 12, backgroundColor: '#fff' },
+  socialIcon: { width: 22, height: 22, resizeMode: 'contain' },
+  socialLabel: { fontSize: 15, color: '#000' },
+
+  checkIcon: { width: 100, height: 100, marginVertical: 30, resizeMode: 'contain' },
+  completeText: { fontSize: 16, textAlign: 'center', color: '#000', marginBottom: 40 },
+
   topBar: {
     backgroundColor: '#fff',
-    height: 50, // makes the bar smaller
+    height: 50,
     paddingTop: 25,
     paddingHorizontal: 20,
-    justifyContent: 'center', // <-- center content
+    justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     zIndex: 999,
     position: 'relative',
   },
-  dots: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  purposeCardCheckboxWrapper: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 1,
-  },
-  cardCheckboxWrapper: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 2,
-  },
+  dots: { flexDirection: 'row', gap: 8 },
 
+  purposeCardCheckboxWrapper: { position: 'absolute', top: 8, left: 8, zIndex: 1 },
+  cardCheckboxWrapper: { position: 'absolute', top: 8, left: 8, zIndex: 2 },
 });

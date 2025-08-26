@@ -9,67 +9,35 @@ import {
   TouchableOpacity,
   Switch,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { auth as firebaseAuth } from '../../src/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
-
-// Optional backend base URL; set EXPO_PUBLIC_API_BASE_URL in env for API load
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
-
-type MeResponse = {
-  id: string;
-  username?: string;
-  email?: string;
-  avatarUrl?: string;
-};
 
 export default function SettingScreen() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  // Username from API (with fallback to Firebase)
   const [username, setUsername] = useState<string>('');
   const [loadingName, setLoadingName] = useState<boolean>(true);
 
+  // Read username from AsyncStorage "user" (saved by your login.tsx)
   useEffect(() => {
     let alive = true;
 
     const loadName = async () => {
       try {
-        const user = firebaseAuth.currentUser;
-        if (!user) throw new Error('Not signed in');
-
-        const fbFallback = user.displayName || user.email?.split('@')[0] || 'user';
-
-        if (API_BASE) {
-          const idToken = await user.getIdToken();
-          const res = await fetch(`${API_BASE}/users/me`, {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-              Accept: 'application/json',
-            },
-          });
-          const text = await res.text();
-          const isJson = text.trim().startsWith('{');
-          const data: MeResponse = isJson ? JSON.parse(text) : {};
-
-          if (!alive) return;
-          setUsername((data.username || '').trim() || fbFallback);
-        } else {
-          if (!alive) return;
-          setUsername(fbFallback);
-        }
+        const raw = await AsyncStorage.getItem('user');
+        const u = raw ? JSON.parse(raw) : null;
+        const name =
+          (u?.username || u?.email?.split?.('@')?.[0] || '').toString().trim() ||
+          'user';
+        if (alive) setUsername(name);
       } catch {
-        const user = firebaseAuth.currentUser;
-        if (!alive) return;
-        if (user) {
-          const fbFallback = user.displayName || user.email?.split('@')[0] || 'user';
-          setUsername(fbFallback);
-        }
+        if (alive) setUsername('user');
       } finally {
         if (alive) setLoadingName(false);
       }
@@ -84,15 +52,67 @@ export default function SettingScreen() {
   const displayHandle =
     username ? (username.startsWith('@') ? username : `@${username}`) : '@user';
 
+  const handleLogout = async () => {
+    try {
+      // Clear your local “session”
+      await AsyncStorage.multiRemove(['user', 'isLoggedIn', 'rememberedEmail']);
+      // Send them to login
+      router.replace('/login&signup/login');
+    } catch (e: any) {
+      Alert.alert('Logout error', e?.message || 'Unknown error');
+    }
+  };
+
+  // Same visual list, but we’ll attach onPress only to Logout
   const settings = [
-    { key: 'views', label: 'Profile Views', icon: <Ionicons name="checkmark-circle-outline" size={24} color="#9333EA" /> },
-    { key: 'likes', label: 'Likes', icon: <Ionicons name="heart-outline" size={24} color="#9333EA" /> },
-    { key: 'shares', label: 'Shares', icon: <Ionicons name="share-social-outline" size={24} color="#9333EA" /> },
-    { key: 'privacy', label: 'Privacy', icon: <Ionicons name="shield-checkmark-outline" size={24} color="#9333EA" /> },
-    { key: 'terms', label: 'Terms', icon: <MaterialIcons name="description" size={24} color="#9333EA" /> },
-    { key: 'language', label: 'Language', icon: <Ionicons name="language-outline" size={24} color="#9333EA" /> },
-    { key: 'help', label: 'Help', icon: <Ionicons name="help-circle-outline" size={24} color="#9333EA" /> },
-    { key: 'logout', label: 'Log Out', icon: <Ionicons name="log-out-outline" size={24} color="#333" /> },
+    {
+      key: 'views',
+      label: 'Profile Views',
+      icon: <Ionicons name="checkmark-circle-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'likes',
+      label: 'Likes',
+      icon: <Ionicons name="heart-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'shares',
+      label: 'Shares',
+      icon: <Ionicons name="share-social-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'privacy',
+      label: 'Privacy',
+      icon: <Ionicons name="shield-checkmark-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'terms',
+      label: 'Terms',
+      icon: <MaterialIcons name="description" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'language',
+      label: 'Language',
+      icon: <Ionicons name="language-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'help',
+      label: 'Help',
+      icon: <Ionicons name="help-circle-outline" size={24} color="#9333EA" />,
+      onPress: undefined,
+    },
+    {
+      key: 'logout',
+      label: 'Log Out',
+      icon: <Ionicons name="log-out-outline" size={24} color="#333" />,
+      onPress: handleLogout, // <- wired up
+    },
   ];
 
   return (
@@ -116,24 +136,26 @@ export default function SettingScreen() {
         {/* Settings List */}
         <View style={styles.settingsSection}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          {settings.map(item => (
-            <View key={item.key} style={styles.settingItem}>
-              <View style={styles.iconWrapper}>{item.icon}</View>
-              <Text style={styles.settingLabel}>{item.label}</Text>
-              {(item.key === 'views' ||
-                item.key === 'likes' ||
-                item.key === 'shares' ||
-                item.key === 'privacy' ||
-                item.key === 'terms' ||
-                item.key === 'language' ||
-                item.key === 'help' ||
-                item.key === 'logout') && (
-                <Ionicons name="chevron-forward" size={20} color="#999" />
-              )}
-            </View>
-          ))}
 
-          {/* Notifications Toggle */}
+          {settings.map(item => {
+            const Row = (
+              <View style={styles.settingItem}>
+                <View style={styles.iconWrapper}>{item.icon}</View>
+                <Text style={styles.settingLabel}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#999" />
+              </View>
+            );
+
+            return item.onPress ? (
+              <TouchableOpacity key={item.key} onPress={item.onPress} activeOpacity={0.8}>
+                {Row}
+              </TouchableOpacity>
+            ) : (
+              <View key={item.key}>{Row}</View>
+            );
+          })}
+
+          {/* Notifications Toggle (unchanged visuals) */}
           <View style={styles.settingItem}>
             <View style={styles.iconWrapper}>
               <Ionicons name="notifications-outline" size={24} color="#9333EA" />

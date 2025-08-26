@@ -1,6 +1,5 @@
-// app/main/profile.tsx
+// app/registration/buildprofile.tsx  (your "profile" screen)
 import React, { useEffect, useState } from 'react';
-
 import { useRouter } from 'expo-router';
 import {
   SafeAreaView,
@@ -22,23 +21,27 @@ import { updateProfile } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const { width } = Dimensions.get('window');
-const niches = ['Musician', 'Makeup Artist', 'Acting', 'Gaming', 'Dancing', 'Content Creator'];
 
 // Local fallback avatar
 const defaultAvatar = require('../../assets/images/avatar.png');
 
-// Expect your backend to expose an authenticated endpoint that returns the current user
-// e.g. GET `${API_BASE}/users/me` -> { id, username, email, avatarUrl }
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+// Prefer env var; fallback to local dev server
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://10.0.0.119:3000';
 
-type MeResponse = {
-  id: string;
+type ProfileResponse = {
+  id?: string;
   username?: string;
   email?: string;
-  avatarUrl?: string;
+  avatar?: string;      // local backend field
+  avatarUrl?: string;   // some backends use this
+  bio?: string;
+  niches?: string[];
+  purposes?: string[];
+  collabs?: string[];
+  socials?: Record<string, string>;
 };
 
-export default function Profile() {
+export default function BuildProfile() {
   const router = useRouter();
 
   const [username, setUsername] = useState<string>('');
@@ -46,7 +49,14 @@ export default function Profile() {
   const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
 
-  // Load profile (username + avatar) from API / Firebase
+  // Profile data from your API
+  const [bio, setBio] = useState<string>('');
+  const [niches, setNiches] = useState<string[]>([]);
+  const [purposes, setPurposes] = useState<string[]>([]);
+  const [collabs, setCollabs] = useState<string[]>([]);
+  const [socials, setSocials] = useState<Record<string, string>>({});
+
+  // Load profile (username + avatar + bio + niches …) from API / Firebase
   useEffect(() => {
     let isMounted = true;
 
@@ -55,40 +65,40 @@ export default function Profile() {
         const user = firebaseAuth.currentUser;
         if (!user) throw new Error('Not signed in');
 
-        const idToken = await user.getIdToken();
+        const nameFallback = user.displayName || user.email?.split('@')[0] || 'user';
 
-        // Try API first if configured
-        if (API_BASE) {
-          const res = await fetch(`${API_BASE}/users/me`, {
+        // Try API: GET /profiles/me (no auth on your local dev server)
+        try {
+          const res = await fetch(`${API_BASE}/profiles/me`, {
             method: 'GET',
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-              Accept: 'application/json',
-            },
+            headers: { Accept: 'application/json' },
           });
-          const text = await res.text();
-          if (!text.trim().startsWith('{')) {
-            throw new Error('Non-JSON profile response');
+
+          if (res.ok) {
+            const data: ProfileResponse = await res.json();
+
+            if (!isMounted) return;
+            setUsername((data.username || '').trim() || nameFallback);
+            setAvatarUri(data.avatarUrl || data.avatar || user.photoURL || undefined);
+            setBio(data.bio || '');
+            setNiches(Array.isArray(data.niches) ? data.niches : []);
+            setPurposes(Array.isArray(data.purposes) ? data.purposes : []);
+            setCollabs(Array.isArray(data.collabs) ? data.collabs : []);
+            setSocials(data.socials || {});
+            return;
           }
-          const data: MeResponse = JSON.parse(text);
-
-          const nameFallback = user.displayName || user.email?.split('@')[0] || 'user';
-          const name = (data.username || '').trim() || nameFallback;
-          const photo = data.avatarUrl || user.photoURL || undefined;
-
-          if (!isMounted) return;
-          setUsername(name);
-          setAvatarUri(photo);
-          return; // done
+        } catch {
+          // swallow and fall back
         }
 
-        // No API: fall back to Firebase Auth only
-        const nameFallback = user.displayName || user.email?.split('@')[0] || 'user';
+        // Fallback: Firebase only
         if (!isMounted) return;
         setUsername(nameFallback);
         setAvatarUri(user.photoURL || undefined);
+        setBio('');
+        setNiches([]);
       } catch {
-        // Silent fail: still show whatever we can from Firebase
+        // Silent fail → show whatever Firebase has
         const user = firebaseAuth.currentUser;
         if (user && isMounted) {
           const nameFallback = user.displayName || user.email?.split('@')[0] || 'user';
@@ -140,21 +150,15 @@ export default function Profile() {
       await updateProfile(user, { photoURL: url });
       setAvatarUri(url);
 
-      // Persist to your backend if available
-      if (API_BASE) {
-        const idToken = await user.getIdToken();
-        try {
-          await fetch(`${API_BASE}/users/me`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ avatarUrl: url }),
-          });
-        } catch {
-          // non-fatal
-        }
+      // Also persist to your backend profile (supports either "avatar" or "avatarUrl")
+      try {
+        await fetch(`${API_BASE}/profiles/me`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatar: url, avatarUrl: url }),
+        });
+      } catch {
+        // non-fatal in dev
       }
     } catch (e: any) {
       console.log('Avatar update error', e);
@@ -170,10 +174,15 @@ export default function Profile() {
       : `@${username}`
     : 'Username';
 
+  // ⬇️ Only show socials that aren’t blank
+  const displaySocials = Object.entries(socials || {}).filter(
+    ([, v]) => typeof v === 'string' && v.trim().length > 0
+  );
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Banner Placeholder */}
+        {/* Banner Placeholder (unchanged) */}
         <View style={styles.bannerContainer}>
           <View style={styles.bannerPlaceholder} />
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -181,7 +190,7 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* Avatar */}
+        {/* Avatar (unchanged) */}
         <TouchableOpacity style={styles.avatar} activeOpacity={0.85} onPress={handleChangeAvatar}>
           <Image
             source={avatarUri ? { uri: avatarUri } : defaultAvatar}
@@ -195,11 +204,11 @@ export default function Profile() {
           )}
         </TouchableOpacity>
 
-        {/* Username & Role */}
+        {/* Username & Role (unchanged) */}
         <Text style={styles.username}>{loadingProfile ? 'Loading…' : handleText}</Text>
         <Text style={styles.role}>Influencer & Market Strategist</Text>
 
-        {/* Stats Row */}
+        {/* Stats Row (unchanged) */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statCount}>12K</Text>
@@ -215,9 +224,9 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Buttons */}
+        {/* Buttons (unchanged) */}
         <View style={styles.buttonsRow}>
-        <TouchableOpacity
+          <TouchableOpacity
             style={styles.editButton}
             onPress={() => {
               console.log('Navigating to /registration/buildprofile');
@@ -251,13 +260,11 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* About Me */}
+        {/* About Me (bio from API) */}
         <Text style={styles.sectionTitle}>About Me</Text>
-        <Text style={styles.bio}>
-          Short bio entry will go here but for now placeholder text to simulate a user's bio description.
-        </Text>
+        <Text style={styles.bio}>{bio?.trim() ? bio : 'No bio yet'}</Text>
 
-        {/* Trending Post */}
+        {/* Collaboration Card (unchanged) */}
         <Text style={styles.sectionTitle}>Collaboration</Text>
         <View style={styles.card}>
           <View style={styles.cardImagePlaceholder} />
@@ -267,7 +274,7 @@ export default function Profile() {
             <View style={styles.authorRow}>
               <View style={styles.avatarSmall} />
               <View style={styles.avatarSmall} />
-              <View style={styles.authorTextWrapper}>
+              <View className="authorTextWrapper" style={styles.authorTextWrapper}>
                 <Text style={styles.postAuthor}>Tom & Mon</Text>
                 <Text style={styles.postSubauthor}>Podcast | Podcast</Text>
               </View>
@@ -285,19 +292,42 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Niches Tags */}
+        {/* Niches Tags (API niches) */}
         <Text style={styles.sectionTitle}>Niches</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tagRow}
         >
-          {niches.map(n => (
-            <View key={n} style={styles.tag}>
-              <Text style={styles.tagText}>{n}</Text>
+          {niches && niches.length > 0 ? (
+            niches.map((n) => (
+              <View key={n} style={styles.tag}>
+                <Text style={styles.tagText}>{n}</Text>
+              </View>
+            ))
+          ) : (
+            <View style={{ paddingVertical: 6 }}>
+              <Text style={{ fontSize: 12, color: '#666' }}>No niches selected</Text>
             </View>
-          ))}
+          )}
         </ScrollView>
+
+        {/* TEMP: Other info section at the very bottom */}
+        <Text style={styles.sectionTitle}>More From Your Profile (temp)</Text>
+        <Text style={styles.bio}>
+          <Text style={{ fontWeight: '600' }}>Purposes:</Text>{' '}
+          {purposes?.length ? purposes.join(', ') : 'None'}
+        </Text>
+        <Text style={styles.bio}>
+          <Text style={{ fontWeight: '600' }}>Collabs:</Text>{' '}
+          {collabs?.length ? collabs.join(', ') : 'None'}
+        </Text>
+        <Text style={styles.bio}>
+          <Text style={{ fontWeight: '600' }}>Socials:</Text>{' '}
+          {displaySocials.length
+            ? displaySocials.map(([k, v]) => `${k}: ${v}`).join('  •  ')
+            : 'None'}
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

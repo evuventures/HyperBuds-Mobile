@@ -1,5 +1,4 @@
 // app/main/explore.tsx
-
 import React, { useEffect, useState, ComponentProps } from 'react';
 import {
   SafeAreaView,
@@ -13,8 +12,7 @@ import {
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '../../src/firebase'; // adjust if your path differs
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Exact union type of Ionicons names
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -24,31 +22,38 @@ export default function Explore() {
   const [username, setUsername] = useState<string | null>(null);
   const [loadingName, setLoadingName] = useState(true);
 
-  // fallback derivation from Firebase user
-  const deriveFallback = (user: User) => {
-    if (user.displayName) return user.displayName;
-    if (user.email) return user.email.split('@')[0];
-    return 'there';
-  };
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async user => {
-      if (!user) {
-        setUsername(null);
-        setLoadingName(false);
-        // redirect to login if unauthenticated
-        router.replace('/login&signup/login');
-        return;
+    let alive = true;
+
+    (async () => {
+      try {
+        // Read whatever you saved at login: { email, ... }
+        const raw = await AsyncStorage.getItem('user');
+        let name = 'there';
+        if (raw) {
+          const u = JSON.parse(raw);
+          // Try common fields you might have stored
+          const fromApi =
+            u?.username ||
+            u?.name ||
+            (typeof u?.email === 'string' ? u.email.split('@')[0] : '');
+
+          if (fromApi && typeof fromApi === 'string' && fromApi.trim().length) {
+            name = fromApi.trim();
+          }
+        }
+        if (alive) setUsername(name);
+      } catch {
+        if (alive) setUsername('there');
+      } finally {
+        if (alive) setLoadingName(false);
       }
+    })();
 
-     
-
-      setUsername(deriveFallback(user));
-      setLoadingName(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const features: { key: string; icon: IoniconName; label: string }[] = [
     { key: 'matches',        icon: 'star',               label: 'Matches' },
