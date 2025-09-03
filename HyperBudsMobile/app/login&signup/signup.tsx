@@ -18,57 +18,138 @@ import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
 
 export const screenOptions = { headerShown: false };
 
+/** Official backend (Render). Override via EXPO_PUBLIC_API_BASE_URL if needed. */
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
+  'https://api-hyperbuds-backend.onrender.com/api/v1';
+
+/* ------------------------------ Helpers ------------------------------ */
+
+const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
+
+const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
+  Promise.race([
+    fetch(url, options),
+    new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('Request timeout')), ms)),
+  ]) as Promise<Response>;
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 1000): Promise<T> {
+  let attempt = 0;
+  // total attempts = retries + 1
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      if (attempt > retries) throw err;
+      const msg = String(err?.message || err);
+      const transient =
+        msg.includes('timeout') ||
+        msg.includes('Network request failed') ||
+        msg.includes('Failed to fetch') ||
+        msg.includes('Network');
+      const delay = (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) + Math.floor(Math.random() * 250);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+const extractRegisterError = (status: number, payload: any) => {
+  if (payload?.message) return payload.message;
+  if (status === 409) return 'Email already in use.';
+  if (status === 400) return 'Invalid signup data.';
+  return 'Signup failed. Please try again.';
+};
+
+/* ------------------------------ Component ------------------------------ */
+
 export default function SignupScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [phone, setPhone] = useState('');
+
+  const [username, setUsername] = useState(''); // local-only (not sent to API yet)
+  const [phone, setPhone] = useState('');       // local-only
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const apiUrl = 'http://10.0.0.119:3000'; // Change to your LAN IP
-
-  const validateInputs = () => {
+  const validate = () => {
     if (!username.trim()) return 'Username is required';
     if (!email.includes('@')) return 'Enter a valid email';
-    if (password.length < 6) return 'Password must be at least 6 characters';
+    if (password.length < 8) return 'Password must be at least 8 characters';
     if (password !== confirm) return 'Passwords do not match';
     return null;
   };
 
-  const handleSignup = async () => {
-    const validationError = validateInputs();
-    if (validationError) {
-      setError(validationError);
-      return;
+  // Calls the endpoint you confirmed works to send the verification email
+  const sendVerificationEmail = async (address: string) => {
+    const res = await withRetry(async () => {
+      return await fetchWithTimeout(`${API_BASE}/auth/verify-email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email: address }),
+      }, 30000);
+    });
+
+    // It might return 200/204/etc. We don't need the body for navigation.
+    if (!res.ok) {
+      const text = await res.text();
+      const data = safeJson(text);
+      // Don’t block navigation, but surface the error on this screen.
+      throw new Error(data?.message || `Failed to send verification email (${res.status}).`);
     }
+  };
+
+  const handleSignup = async () => {
+    const v = validate();
+    if (v) { setError(v); return; }
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      // 1) Register
+      const regRes = await withRetry(async () => {
+        return await fetchWithTimeout(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: email.trim(), password }),
+        }, 30000);
       });
 
-      const data = await response.json();
+      const regText = await regRes.text();
+      const regData = safeJson(regText);
 
-      if (!response.ok) {
-        setError(data?.error || 'Signup failed');
+      if (!regRes.ok) {
+        setError(extractRegisterError(regRes.status, regData));
+        setLoading(false);
         return;
       }
 
-      // Success: user is created
-      router.replace('/main/explore');
-    } catch (err) {
-      console.error('Signup error:', err);
-      setError('Server error. Please try again.');
+      // 2) Immediately send verification email
+      try {
+        await sendVerificationEmail(email.trim());
+      } catch (e: any) {
+        // Non-fatal: still proceed to verify screen where user can retry
+        setError(e?.message || 'Could not send verification email right now. You can retry on the next screen.');
+      }
+
+      // 3) Go to verify screen and pass along the email (Expo Router params)
+      router.push({
+        pathname: '/login&signup/verifyemail',
+        params: { email: email.trim() },
+      });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      setError(
+        msg === 'Request timeout'
+          ? 'Request timed out. The server may be cold-starting — please try again.'
+          : msg
+      );
     } finally {
       setLoading(false);
     }
@@ -81,13 +162,12 @@ export default function SignupScreen() {
       resizeMode="cover"
     >
       <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <Text style={styles.title}>Sign Up</Text>
+
             <View style={styles.formWrapper}>
+              {/* Username (local) */}
               <View style={styles.inputField}>
                 <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -100,6 +180,7 @@ export default function SignupScreen() {
                 />
               </View>
 
+              {/* Phone (local) */}
               <View style={styles.inputField}>
                 <Feather name="phone" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -112,6 +193,7 @@ export default function SignupScreen() {
                 />
               </View>
 
+              {/* Email */}
               <View style={styles.inputField}>
                 <Feather name="mail" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -125,10 +207,11 @@ export default function SignupScreen() {
                 />
               </View>
 
+              {/* Password */}
               <View style={styles.inputField}>
                 <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
-                  placeholder="Password"
+                  placeholder="Password (min 8 chars)"
                   placeholderTextColor="#aaa"
                   secureTextEntry={!showPassword}
                   style={[styles.input, { paddingRight: 40 }]}
@@ -136,14 +219,12 @@ export default function SignupScreen() {
                   onChangeText={setPassword}
                   autoCapitalize="none"
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword((p) => !p)}
-                  style={styles.eyeButton}
-                >
+                <TouchableOpacity onPress={() => setShowPassword((p) => !p)} style={styles.eyeButton}>
                   <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
                 </TouchableOpacity>
               </View>
 
+              {/* Confirm */}
               <View style={styles.inputField}>
                 <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
                 <TextInput
@@ -155,41 +236,27 @@ export default function SignupScreen() {
                   onChangeText={setConfirm}
                   autoCapitalize="none"
                 />
-                <TouchableOpacity
-                  onPress={() => setShowConfirm((c) => !c)}
-                  style={styles.eyeButton}
-                >
+                <TouchableOpacity onPress={() => setShowConfirm((c) => !c)} style={styles.eyeButton}>
                   <Feather name={showConfirm ? 'eye-off' : 'eye'} size={20} color="#555" />
                 </TouchableOpacity>
               </View>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              <TouchableOpacity
-                style={styles.signupButton}
-                onPress={handleSignup}
-                disabled={loading}
-              >
+              <TouchableOpacity style={styles.signupButton} onPress={handleSignup} disabled={loading}>
                 <LinearGradient
                   colors={['#3B82F6', '#9333EA']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.gradientButton}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.signupText}>Sign Up</Text>
-                  )}
+                  {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signupText}>Sign Up</Text>}
                 </LinearGradient>
               </TouchableOpacity>
 
               <Text style={styles.loginPrompt}>
                 Already have an account?{' '}
-                <Text
-                  style={styles.loginLink}
-                  onPress={() => router.replace('/login&signup/login')}
-                >
+                <Text style={styles.loginLink} onPress={() => router.replace('/login&signup/login')}>
                   Log In
                 </Text>
               </Text>
@@ -214,18 +281,23 @@ export default function SignupScreen() {
   );
 }
 
+/* ------------------------------- Styles ------------------------------- */
+
 const styles = StyleSheet.create({
   background: { flex: 1, width: '100%', height: '100%' },
   overlay: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+
   title: {
     fontSize: 42,
     fontWeight: '700',
     color: '#9333EA',
     textAlign: 'center',
     marginTop: 60,
-    marginBottom: 40,
+    marginBottom: 16,
   },
-  formWrapper: { marginTop: 20 },
+
+  formWrapper: { marginTop: 6 },
+
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -242,38 +314,20 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, fontSize: 16, color: '#000' },
-  eyeButton: {
-    position: 'absolute',
-    right: 12,
-    padding: 4,
-  },
-  signupButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 15 },
-  gradientButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 70,
-    alignItems: 'center',
-    alignSelf: 'center',
-    borderRadius: 12,
-  },
+  eyeButton: { position: 'absolute', right: 12, padding: 4 },
+
+  signupButton: { borderRadius: 12, overflow: 'hidden', marginBottom: 15, alignSelf: 'center' },
+  gradientButton: { paddingVertical: 16, paddingHorizontal: 70, alignItems: 'center', borderRadius: 12 },
   signupText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+
   loginPrompt: { textAlign: 'center', fontSize: 14, marginBottom: 15 },
   loginLink: { color: '#6A0DAD', fontWeight: '600' },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    paddingHorizontal: 30,
-  },
+
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingHorizontal: 30 },
   divider: { flex: 1, height: 1, backgroundColor: '#ddd' },
   continueWith: { marginHorizontal: 10, color: '#888', fontSize: 12 },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 30,
-  },
-  error: {
-    color: 'red',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
+
+  socialRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 30 },
+
+  error: { color: 'crimson', textAlign: 'center', marginBottom: 12 },
 });

@@ -1,253 +1,291 @@
 // app/matchmaker/aimatchmaker.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  Image,
+  Animated,
+  Easing,
   Dimensions,
-} from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width } = Dimensions.get('window');
-// card width as before, but bump height by 10%
-const CARD_WIDTH = (width - 48) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.1;
+/** API base */
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_BASE_URL || "").trim() ||
+  "https://api-hyperbuds-backend.onrender.com/api/v1";
+
+const { width } = Dimensions.get("window");
+
+type Suggestion = {
+  _id: string;
+  compatibilityScore: number;
+  profile: {
+    displayName?: string;
+    avatar?: string;
+    rizzScore?: number;
+  };
+  breakdown?: {
+    audienceOverlap?: number;
+    nicheCompatibility?: number;
+    engagementStyle?: number;
+    geolocation?: number;
+    activityTime?: number;
+    rizzScoreCompatibility?: number;
+  };
+};
+
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const accessToken = await AsyncStorage.getItem("auth.accessToken");
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(init.body && !(init.body instanceof FormData)
+      ? { "Content-Type": "application/json" }
+      : {}),
+    ...(init.headers as Record<string, string>),
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+  return fetch(`${API_BASE}${path}`, { ...init, headers });
+}
 
 export default function AIMatchmakerScreen() {
   const router = useRouter();
-  const [tab, setTab] = useState<'Matches' | 'For You'>('Matches');
+  const [loading, setLoading] = useState(false);
+  const [match, setMatch] = useState<Suggestion | null>(null);
 
-  const names = ['Lavender', 'Adithya', 'Amy', 'Haewon'];
-  const subtitles = [
-    'Artist | Musician',
-    'Influencer | Artist',
-    'Stylist | Model',
-    'Influencer | Model',
-  ];
-  const matches = ['100%', '96%', '82%', '73%'];
+  /** animation refs */
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [randomRizz, setRandomRizz] = useState<number>(0);
+  const rizzInterval = useRef<NodeJS.Timeout | null>(null);
+
+  /** start loader animation */
+  const startAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 400,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // random rizz % numbers
+    rizzInterval.current = setInterval(() => {
+      setRandomRizz(Math.floor(80 + Math.random() * 20));
+    }, 500);
+  };
+
+  const stopAnimation = () => {
+    scaleAnim.stopAnimation();
+    if (rizzInterval.current) clearInterval(rizzInterval.current);
+  };
+
+  /** fetch a match */
+  const handleGetMatch = async () => {
+    setLoading(true);
+    setMatch(null);
+    setRandomRizz(0);
+    startAnimation();
+
+    try {
+      const res = await apiFetch(
+        "/matching/suggestions?refresh=true&limit=1",
+        { method: "GET" }
+      );
+      const text = await res.text();
+      const data = JSON.parse(text);
+
+      // wait at least 3.5s for animation "magic"
+      setTimeout(() => {
+        stopAnimation();
+        if (res.ok && Array.isArray(data) && data.length > 0) {
+          setMatch(data[0]);
+        } else {
+          console.warn("Unexpected match response", data);
+        }
+        setLoading(false);
+      }, 3500);
+    } catch (e) {
+      stopAnimation();
+      setLoading(false);
+      console.error("Match error", e);
+    }
+  };
+
+  /** render breakdown bars */
+  const renderBreakdown = (label: string, value?: number) => {
+    if (value == null) return null;
+    const pct = Math.round(value * 100);
+    return (
+      <View style={styles.breakdownRow} key={label}>
+        <Text style={styles.breakdownLabel}>{label}</Text>
+        <View style={styles.breakdownBarBg}>
+          <View style={[styles.breakdownBarFill, { width: `${pct}%` }]} />
+        </View>
+        <Text style={styles.breakdownPct}>{pct}%</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Top bar */}
+      {/* header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => {/* TODO: search */}}>
-          <Feather name="search" size={24} color="#333" />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>AI Matchmaker</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Logo */}
-        <View style={styles.logoPlaceholder}>
-          <Ionicons name="people-outline" size={48} color="#A855F7" />
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* Get a Match button */}
+        <TouchableOpacity
+          onPress={handleGetMatch}
+          disabled={loading}
+          style={{ alignSelf: "center", marginBottom: 20 }}
+        >
+          <LinearGradient
+            colors={["#9333EA", "#3B82F6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.matchBtn}
+          >
+            <Text style={styles.matchBtnText}>
+              {loading ? "Finding…" : "Get a Match"}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        <Text style={styles.title}>Discovery</Text>
-        <Text style={styles.subtitle}>Designed to fit your niches</Text>
+        {/* Loader state */}
+        {loading && (
+          <View style={styles.loader}>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <View style={styles.avatarPlaceholder} />
+            </Animated.View>
+            <Text style={styles.loaderText}>{randomRizz}% Rizz Magic…</Text>
+            <ActivityIndicator size="large" color="#9333EA" style={{ marginTop: 16 }} />
+          </View>
+        )}
 
-        {/* Segment control */}
-        <View style={styles.segment}>
-          {(['Matches', 'For You'] as const).map((label) => (
-            <TouchableOpacity
-              key={label}
-              onPress={() => setTab(label)}
-              style={[
-                styles.segmentButton,
-                tab === label && styles.segmentButtonActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  tab === label && styles.segmentTextActive,
-                ]}
-              >
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Result */}
+        {match && (
+          <View style={styles.resultCard}>
+            <Image
+              source={
+                match.profile?.avatar
+                  ? { uri: match.profile.avatar }
+                  : require("../../assets/images/avatar.png")
+              }
+              style={styles.resultAvatar}
+            />
+            <Text style={styles.resultName}>
+              {match.profile?.displayName || "Unknown"}
+            </Text>
+            <Text style={styles.resultScore}>
+              Compatibility: {match.compatibilityScore}%
+            </Text>
+            <Text style={styles.resultScore}>
+              Rizz Score: {match.profile?.rizzScore ?? "—"}%
+            </Text>
 
-        {/* Cards grid */}
-        <View style={styles.grid}>
-          {names.map((name, i) => (
-            <View key={i} style={styles.card}>
-              {/* taller placeholder */}
-              <View style={[styles.imagePlaceholder, { height: CARD_HEIGHT }]} />
-
-              {/* Gradient match badge */}
+            <TouchableOpacity style={styles.suggestBtn}>
               <LinearGradient
-                colors={['#9333EA', '#3B82F6']}
+                colors={["#9333EA", "#3B82F6"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.matchBadge}
+                style={styles.suggestBtnGrad}
               >
-                <Text style={styles.matchBadgeText}>{matches[i]} Match</Text>
+                <Text style={styles.suggestBtnText}>Suggest Collab</Text>
               </LinearGradient>
+            </TouchableOpacity>
 
-              {/* Top icons */}
-              <Ionicons
-                name="eye-outline"
-                size={20}
-                color="#fff"
-                style={styles.eyeIcon}
-              />
-              <Ionicons
-                name="location-sharp"
-                size={20}
-                color="#fff"
-                style={styles.pinIcon}
-              />
-
-              {/* Name & subtitle */}
-              <Text style={styles.cardName}>{name}</Text>
-              <Text style={styles.cardSubtitle}>{subtitles[i]}</Text>
-
-              {/* Action icon */}
-              <TouchableOpacity style={styles.actionIcon}>
-                <MaterialCommunityIcons
-                  name="handshake-outline"
-                  size={20}
-                  color="#A855F7"
-                />
-              </TouchableOpacity>
+            {/* breakdown */}
+            <View style={styles.breakdownBox}>
+              <Text style={styles.breakdownTitle}>Compatibility Breakdown</Text>
+              {renderBreakdown("Audience Overlap", match.breakdown?.audienceOverlap)}
+              {renderBreakdown("Niche Compatibility", match.breakdown?.nicheCompatibility)}
+              {renderBreakdown("Engagement Style", match.breakdown?.engagementStyle)}
+              {renderBreakdown("Geolocation", match.breakdown?.geolocation)}
+              {renderBreakdown("Activity Time", match.breakdown?.activityTime)}
+              {renderBreakdown("Rizz Compatibility", match.breakdown?.rizzScoreCompatibility)}
             </View>
-          ))}
-        </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  scroll: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    alignItems: 'center',
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
+
+  matchBtn: { paddingVertical: 12, paddingHorizontal: 40, borderRadius: 999 },
+  matchBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  loader: { alignItems: "center", marginTop: 40 },
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#EEE",
   },
-  logoPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F3E8FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#9333EA',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  segment: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  segmentButton: {
-    flex: 1,
-    paddingVertical: 6,
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-  },
-  segmentButtonActive: {
-    backgroundColor: '#F3E8FF',
-  },
-  segmentText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  segmentTextActive: {
-    color: '#9333EA',
-    fontWeight: '600',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  card: {
-    width: CARD_WIDTH,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    backgroundColor: '#fff',
+  loaderText: { marginTop: 16, fontSize: 16, color: "#9333EA", fontWeight: "600" },
+
+  resultCard: {
+    marginTop: 30,
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: "#F9F9F9",
     elevation: 2,
   },
-  imagePlaceholder: {
-    width: '100%',
-    backgroundColor: '#EEE',
-  },
-  matchBadge: {
-    position: 'absolute',
-    top: 8,
-    alignSelf: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  matchBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  eyeIcon: {
-    position: 'absolute',
-    top: 8,
-    left: 3,
-  },
-  pinIcon: {
-    position: 'absolute',
-    top: 8,
-    right: 3,
-  },
-  cardName: {
-    marginTop: 8,
-    marginHorizontal: 8,
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    marginHorizontal: 8,
+  resultAvatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 12 },
+  resultName: { fontSize: 20, fontWeight: "700", color: "#333", marginBottom: 6 },
+  resultScore: { fontSize: 14, color: "#666", marginBottom: 4 },
+
+  suggestBtn: { marginTop: 16 },
+  suggestBtnGrad: { paddingVertical: 10, paddingHorizontal: 32, borderRadius: 999 },
+  suggestBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  breakdownBox: { marginTop: 20, width: "100%" },
+  breakdownTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12, color: "#333" },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
-  actionIcon: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    backgroundColor: '#F3E8FF',
-    borderRadius: 16,
-    padding: 6,
+  breakdownLabel: { flex: 1, fontSize: 13, color: "#555" },
+  breakdownBarBg: {
+    flex: 2,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 8,
+    overflow: "hidden",
   },
+  breakdownBarFill: { height: "100%", borderRadius: 4, backgroundColor: "#9333EA" },
+  breakdownPct: { width: 40, fontSize: 12, textAlign: "right", color: "#333" },
 });

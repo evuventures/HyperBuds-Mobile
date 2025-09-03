@@ -1,4 +1,4 @@
-// buildprofile.tsx
+// app/login&signup/buildprofile.tsx
 import { AntDesign } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Alert,
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -17,10 +16,12 @@ import {
 } from "react-native";
 import Swiper from "react-native-swiper";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.0.106:3000";
+// Prefer env var; fallback to your LAN IP (keep this updated!)
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://10.0.0.106:3000";
 
 export default function BuildProfileScreen() {
-  const { width } = Dimensions.get("window");
+  const router = useRouter();
 
   const categoriesData = {
     Creator: [
@@ -69,7 +70,6 @@ export default function BuildProfileScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  const router = useRouter();
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSubcategories, setSelectedSubcategories] = useState<{ [key: string]: string[] }>({});
@@ -125,7 +125,7 @@ export default function BuildProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.7, // smaller file → faster upload over LAN
     });
     if (!result.canceled) {
       setAvatar(result.assets[0].uri);
@@ -138,7 +138,7 @@ export default function BuildProfileScreen() {
   };
 
   // ---------- net utils ----------
-  const fetchWithTimeout = (url: string, options: RequestInit, ms = 10000) => {
+  const fetchWithTimeout = (url: string, options: RequestInit, ms = 45000) => {
     return Promise.race([
       fetch(url, options),
       new Promise<Response>((_, reject) =>
@@ -151,7 +151,7 @@ export default function BuildProfileScreen() {
     if (!uri) return undefined;
     if (/^https?:\/\//i.test(uri)) return uri;
 
-    console.log("⏫ Uploading avatar to backend…");
+    console.log("⏫ Uploading avatar to backend…", { API_BASE, uri });
     const fd = new FormData();
     fd.append("file", {
       uri,
@@ -192,7 +192,7 @@ export default function BuildProfileScreen() {
       const profileData = {
         avatar: avatarUrl, // public URL from backend
         bio,
-        niches: nichesArray,               // array of strings
+        niches: nichesArray,
         purposes: selectedPurposes,
         collabs: selectedCollabs,
         socials: socials.reduce(
@@ -203,11 +203,15 @@ export default function BuildProfileScreen() {
 
       console.log("📤 PUT /profiles/me payload:", profileData);
 
-      const res = await fetchWithTimeout(`${API_BASE}/profiles/me`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profileData),
-      }, 12000);
+      const res = await fetchWithTimeout(
+        `${API_BASE}/profiles/me`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(profileData),
+        },
+        45000
+      );
 
       const text = await res.text();
       let data: any = {};

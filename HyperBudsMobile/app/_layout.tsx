@@ -1,17 +1,15 @@
 // app/_layout.tsx
-
-import React from 'react';
-import { Stack } from 'expo-router';
-import { AuthProvider } from '../src/contexts/AuthContext';
+import React, { useEffect } from 'react';
+import { Stack, usePathname } from 'expo-router';
 
 export default function RootLayout() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    console.log('[ROUTE]', pathname);
+  }, [pathname]);
+
   return (
-    <AuthProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false, // hide the top nav bar on all screens
-        }}
-      />
-    </AuthProvider>
+    <Stack screenOptions={{ headerShown: false }} />
   );
 }
