@@ -332,7 +332,7 @@ export default function ProfileScreen() {
           ) : (
             <View style={styles.bannerPlaceholder} />
           )}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/main/explore")}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
         </View>

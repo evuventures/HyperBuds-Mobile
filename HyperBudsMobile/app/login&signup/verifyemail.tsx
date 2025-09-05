@@ -167,7 +167,7 @@ export default function VerifyEmailScreen() {
       await AsyncStorage.multiRemove(['pendingSignup.email', 'pendingSignup.password']);
 
       // Go to onboarding
-      router.replace('/onboarding');
+      router.replace('/registration/onboarding');
     } catch (e: any) {
       setError(e?.message || 'Could not confirm verification yet.');
     } finally {

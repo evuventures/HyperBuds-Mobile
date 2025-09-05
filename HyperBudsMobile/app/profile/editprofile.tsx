@@ -50,6 +50,13 @@ type ProfileModel = {
     twitter?: string;
     linkedin?: string;
   };
+  /** ✅ Added so we can send location to backend (to avoid $geoNear warnings) */
+  location?: {
+    country?: string;
+    state?: string;
+    city?: string;
+    coordinates?: [number, number]; // [lng, lat]
+  };
 };
 
 type UsersMeResponse = {
@@ -177,6 +184,11 @@ export default function EditProfileScreen() {
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
+  // ✅ NEW: Location inputs to satisfy backend geo requirements
+  const [country, setCountry] = useState<string>("");
+  const [locState, setLocState] = useState<string>("");
+  const [city, setCity] = useState<string>("");
+
   // Small action loaders
   const [updatingEmail, setUpdatingEmail] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
@@ -211,6 +223,13 @@ export default function EditProfileScreen() {
         );
 
         setEmail(data?.user?.email || "");
+
+        /** ✅ Load existing location into inputs (if present) */
+        if (p.location) {
+          setCountry(p.location.country || "");
+          setLocState(p.location.state || "");
+          setCity(p.location.city || "");
+        }
       } catch (e: any) {
         Alert.alert("Load error", e?.message || "Could not load your profile.");
       } finally {
@@ -285,6 +304,17 @@ export default function EditProfileScreen() {
         bio,
         niche,
         socialLinks,
+
+        /** ✅ Send location so backend $geoNear has a numeric point.
+         *  ⚠️ TEMP COORDS BELOW — delete/replace with real long/lat later.
+         *  Using Atlanta [-84.388, 33.749] as sample [lng, lat].
+         */
+        location: {
+          country: country || "United States",
+          state: locState || "",
+          city: city || "",
+          coordinates: [-84.388, 33.749], // <-- TEMP: replace with real coordinates later
+        },
       };
 
       const r = await apiFetch("/profiles/me", {
@@ -432,6 +462,33 @@ export default function EditProfileScreen() {
             numberOfLines={4}
           />
 
+          {/* ✅ Location inputs (minimal addition) */}
+          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Location</Text>
+          <TextInput
+            style={styles.input}
+            placeholderTextColor="#666"
+            placeholder="Country"
+            value={country}
+            onChangeText={setCountry}
+            autoCapitalize="words"
+          />
+          <TextInput
+            style={styles.input}
+            placeholderTextColor="#666"
+            placeholder="State / Region"
+            value={locState}
+            onChangeText={setLocState}
+            autoCapitalize="words"
+          />
+          <TextInput
+            style={styles.input}
+            placeholderTextColor="#666"
+            placeholder="City"
+            value={city}
+            onChangeText={setCity}
+            autoCapitalize="words"
+          />
+
           {/* Niches */}
           <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Niches</Text>
           <Text style={styles.subtext}>Pick up to 5 (required by backend)</Text>
@@ -446,7 +503,7 @@ export default function EditProfileScreen() {
                     setSelectedNiches((prev) => {
                       const has = prev.includes(n);
                       if (has) return prev.filter((x) => x !== n) as ValidNiche[];
-                      if (prev.length >= 5) return prev;
+                      if (prev.length >= 5) return prev; // enforce max 5
                       return [...prev, n] as ValidNiche[];
                     });
                   }}
@@ -494,7 +551,7 @@ export default function EditProfileScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.gradient}
             >
-              <Text style={styles.buttonText} numberOfLines={1}>Save Changes</Text>
+              <Text style={styles.buttonText} numberOfLines={1}>{saving ? "Saving…" : "Save Changes"}</Text>
             </LinearGradient>
           </TouchableOpacity>
 

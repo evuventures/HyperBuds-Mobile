@@ -1,5 +1,5 @@
 // app/matchmaker/aimatchmaker.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Dimensions,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -26,19 +27,19 @@ const { width } = Dimensions.get("window");
 
 type Suggestion = {
   _id: string;
-  compatibilityScore: number;
+  compatibilityScore: number; // 0-100
   profile: {
     displayName?: string;
     avatar?: string;
-    rizzScore?: number;
+    rizzScore?: number; // 0-100
   };
   breakdown?: {
-    audienceOverlap?: number;
-    nicheCompatibility?: number;
-    engagementStyle?: number;
-    geolocation?: number;
-    activityTime?: number;
-    rizzScoreCompatibility?: number;
+    audienceOverlap?: number;         // 0-1
+    nicheCompatibility?: number;      // 0-1
+    engagementStyle?: number;         // 0-1
+    geolocation?: number;             // 0-1
+    activityTime?: number;            // 0-1
+    rizzScoreCompatibility?: number;  // 0-1
   };
 };
 
@@ -57,13 +58,15 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 
 export default function AIMatchmakerScreen() {
   const router = useRouter();
+
   const [loading, setLoading] = useState(false);
   const [match, setMatch] = useState<Suggestion | null>(null);
+  const [empty, setEmpty] = useState(false);
 
   /** animation refs */
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [randomRizz, setRandomRizz] = useState<number>(0);
-  const rizzInterval = useRef<NodeJS.Timeout | null>(null);
+  const rizzInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** start loader animation */
   const startAnimation = () => {
@@ -92,38 +95,73 @@ export default function AIMatchmakerScreen() {
 
   const stopAnimation = () => {
     scaleAnim.stopAnimation();
-    if (rizzInterval.current) clearInterval(rizzInterval.current);
+    if (rizzInterval.current) {
+      clearInterval(rizzInterval.current);
+      rizzInterval.current = null;
+    }
   };
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => stopAnimation();
+  }, []);
 
   /** fetch a match */
   const handleGetMatch = async () => {
     setLoading(true);
     setMatch(null);
+    setEmpty(false);
     setRandomRizz(0);
     startAnimation();
 
     try {
-      const res = await apiFetch(
-        "/matching/suggestions?refresh=true&limit=1",
-        { method: "GET" }
-      );
+      const res = await apiFetch("/matching/suggestions?refresh=true&limit=1", {
+        method: "GET",
+      });
       const text = await res.text();
-      const data = JSON.parse(text);
+      let data: any = {};
+      try {
+        data = JSON.parse(text || "{}");
+      } catch {
+        // fallthrough
+      }
 
-      // wait at least 3.5s for animation "magic"
+      // Ensure animation feels like “magic”
       setTimeout(() => {
         stopAnimation();
-        if (res.ok && Array.isArray(data) && data.length > 0) {
-          setMatch(data[0]);
+
+        // Handle error shape: { message: "..." }
+        if (!res.ok || (data && typeof data === "object" && "message" in data)) {
+          setLoading(false);
+          setMatch(null);
+          setEmpty(false);
+          Alert.alert(
+            "Matching unavailable",
+            data?.message || "Please try again later."
+          );
+          return;
+        }
+
+        // Handle expected API shape: { matches: Suggestion[], pagination: {...} }
+        const suggestions: Suggestion[] | undefined = data?.matches;
+        if (Array.isArray(suggestions) && suggestions.length > 0) {
+          setMatch(suggestions[0]);
+          setEmpty(false);
         } else {
-          console.warn("Unexpected match response", data);
+          // No results
+          setMatch(null);
+          setEmpty(true);
+          // console.warn("Unexpected match response", data);
         }
         setLoading(false);
       }, 3500);
     } catch (e) {
       stopAnimation();
       setLoading(false);
-      console.error("Match error", e);
+      setMatch(null);
+      setEmpty(false);
+      Alert.alert("Network error", "Could not fetch suggestions.");
+      // console.error("Match error", e);
     }
   };
 
@@ -146,11 +184,20 @@ export default function AIMatchmakerScreen() {
     <View style={styles.container}>
       {/* header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Feather name="arrow-left" size={24} color="#333" />
+        {/* Bigger hitbox + slightly lower placement */}
+        <TouchableOpacity
+          style={styles.backButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          onPress={() => (router.canGoBack() ? router.back() : router.push("/main/explore"))}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Feather name="arrow-left" size={26} color="#333" />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>AI Matchmaker</Text>
-        <View style={{ width: 24 }} />
+        {/* spacer to keep title centered */}
+        <View style={{ width: 60, height: 60 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -183,8 +230,18 @@ export default function AIMatchmakerScreen() {
           </View>
         )}
 
+        {/* Empty state */}
+        {!loading && empty && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No matches (yet)</Text>
+            <Text style={styles.emptyHint}>
+              Try adding niches and a location in Edit Profile, then try again.
+            </Text>
+          </View>
+        )}
+
         {/* Result */}
-        {match && (
+        {match && !loading && (
           <View style={styles.resultCard}>
             <Image
               source={
@@ -198,7 +255,7 @@ export default function AIMatchmakerScreen() {
               {match.profile?.displayName || "Unknown"}
             </Text>
             <Text style={styles.resultScore}>
-              Compatibility: {match.compatibilityScore}%
+              Compatibility: {Math.round(match.compatibilityScore)}%
             </Text>
             <Text style={styles.resultScore}>
               Rizz Score: {match.profile?.rizzScore ?? "—"}%
@@ -234,13 +291,24 @@ export default function AIMatchmakerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
+
   header: {
     flexDirection: "row",
-    padding: 16,
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8, // a bit taller header
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
+
+  // Bigger hitbox + lowered a bit
+  backButton: {
+    width: 60,
+    height: 60,
+    marginTop: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   matchBtn: { paddingVertical: 12, paddingHorizontal: 40, borderRadius: 999 },
   matchBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
@@ -253,6 +321,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEE",
   },
   loaderText: { marginTop: 16, fontSize: 16, color: "#9333EA", fontWeight: "600" },
+
+  emptyState: {
+    alignItems: "center",
+    marginTop: 30,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: "#F9F9F9",
+  },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 6 },
+  emptyHint: { fontSize: 13, color: "#666", textAlign: "center" },
 
   resultCard: {
     marginTop: 30,
