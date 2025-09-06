@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location"; // ← Get device location
 
 /** API base */
 const API_BASE =
@@ -106,6 +107,58 @@ export default function AIMatchmakerScreen() {
     return () => stopAnimation();
   }, []);
 
+  /**
+   * Try to get device location.
+   * If denied/unavailable, fall back to profile location from /profiles/me.
+   * Returns a query string like "&lng=-73.98&lat=40.76" or "".
+   */
+  const resolveLocationQS = async (): Promise<string> => {
+    // 1) Try device location
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const { longitude, latitude } = loc.coords || {};
+        if (
+          typeof longitude === "number" &&
+          isFinite(longitude) &&
+          typeof latitude === "number" &&
+          isFinite(latitude)
+        ) {
+          return `&lng=${longitude}&lat=${latitude}`;
+        }
+      }
+    } catch {
+      // ignore, fall through to profile
+    }
+
+    // 2) Fall back to profile location
+    try {
+      const res = await apiFetch("/profiles/me", { method: "GET" });
+      const text = await res.text();
+      const data = JSON.parse(text || "{}");
+      const coords = data?.location?.coordinates;
+      if (
+        Array.isArray(coords) &&
+        coords.length === 2 &&
+        typeof coords[0] === "number" &&
+        isFinite(coords[0]) &&
+        typeof coords[1] === "number" &&
+        isFinite(coords[1])
+      ) {
+        // coords format is [lng, lat]
+        return `&lng=${coords[0]}&lat=${coords[1]}`;
+      }
+    } catch {
+      // no profile location available
+    }
+
+    // 3) Nothing usable
+    return "";
+  };
+
   /** fetch a match */
   const handleGetMatch = async () => {
     setLoading(true);
@@ -115,9 +168,11 @@ export default function AIMatchmakerScreen() {
     startAnimation();
 
     try {
-      const res = await apiFetch("/matching/suggestions?refresh=true&limit=1", {
-        method: "GET",
-      });
+      // Build URL with location if available
+      const locQS = await resolveLocationQS();
+      const url = `/matching/suggestions?refresh=true&limit=1${locQS}`;
+
+      const res = await apiFetch(url, { method: "GET" });
       const text = await res.text();
       let data: any = {};
       try {
@@ -142,16 +197,14 @@ export default function AIMatchmakerScreen() {
           return;
         }
 
-        // Handle expected API shape: { matches: Suggestion[], pagination: {...} }
+        // Expected shape: { matches: Suggestion[], pagination: {...} }
         const suggestions: Suggestion[] | undefined = data?.matches;
         if (Array.isArray(suggestions) && suggestions.length > 0) {
           setMatch(suggestions[0]);
           setEmpty(false);
         } else {
-          // No results
           setMatch(null);
           setEmpty(true);
-          // console.warn("Unexpected match response", data);
         }
         setLoading(false);
       }, 3500);
@@ -161,7 +214,6 @@ export default function AIMatchmakerScreen() {
       setMatch(null);
       setEmpty(false);
       Alert.alert("Network error", "Could not fetch suggestions.");
-      // console.error("Match error", e);
     }
   };
 
@@ -188,7 +240,9 @@ export default function AIMatchmakerScreen() {
         <TouchableOpacity
           style={styles.backButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          onPress={() => (router.canGoBack() ? router.back() : router.push("/main/explore"))}
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.push("/main/explore")
+          }
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >

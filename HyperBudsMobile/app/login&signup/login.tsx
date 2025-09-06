@@ -111,21 +111,21 @@ async function tryVerifyEmail(email: string) {
       fetchWithTimeout(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ userId: email }), // sometimes accepts userId; we try email for flexibility
+        body: JSON.stringify({ userId: email }),
       }, 20000)
     );
     attempts.push(() =>
       fetchWithTimeout(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ token: 'dev' }), // generic dev token shape
+        body: JSON.stringify({ token: 'dev' }),
       }, 20000)
     );
     attempts.push(() =>
       fetchWithTimeout(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ code: '000000' }), // generic dev code
+        body: JSON.stringify({ code: '000000' }),
       }, 20000)
     );
     // GET ?email=
@@ -144,8 +144,8 @@ async function tryVerifyEmail(email: string) {
   return false;
 }
 
-// Dev helper (optional)
-const clearSavedSession = async () => {
+// Dev helper (kept but unused in UI)
+/* const clearSavedSession = async () => {
   await AsyncStorage.multiRemove([
     'user',
     'isLoggedIn',
@@ -155,7 +155,7 @@ const clearSavedSession = async () => {
     'auth.tokenIssuedAt',
   ]);
   console.log('✅ Cleared saved session keys');
-};
+}; */
 
 /* ----------------------------- Component ----------------------------- */
 
@@ -171,8 +171,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Debug info (small but useful)
-  const [diag, setDiag] = useState<string>('');
+  // Debug info (commented out for cleanup)
+  // const [diag, setDiag] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -183,19 +183,19 @@ export default function LoginScreen() {
       }
     })();
 
-    // Optional pre-warm ping to mitigate cold-starts
-    (async () => {
-      try {
-        setDiag(`Checking server…`);
-        await withRetry(async () => {
-          const r = await fetchWithTimeout(`${API_BASE}/health`, { method: 'GET' }, 20000);
-          if (!r.ok) throw new Error(`Health check ${r.status}`);
-          setDiag(`Server OK (${r.status}).`);
-        }, 1, 1200);
-      } catch (e: any) {
-        setDiag(`Health check failed: ${e?.message || e}`);
-      }
-    })();
+    // 🔧 TEST/DEV HEALTH CHECK — commented out to clean page
+    // (async () => {
+    //   try {
+    //     setDiag(`Checking server…`);
+    //     await withRetry(async () => {
+    //       const r = await fetchWithTimeout(`${API_BASE}/health`, { method: 'GET' }, 20000);
+    //       if (!r.ok) throw new Error(`Health check ${r.status}`);
+    //       setDiag(`Server OK (${r.status}).`);
+    //     }, 1, 1200);
+    //   } catch (e: any) {
+    //     setDiag(`Health check failed: ${e?.message || e}`);
+    //   }
+    // })();
   }, []);
 
   const performLogin = async (email: string, pwd: string) => {
@@ -287,6 +287,25 @@ export default function LoginScreen() {
     }
   };
 
+  // 🚀 Quick Login with provided demo credentials
+  const quickLogin = async () => {
+    setError(null);
+    setLoading(true);
+    const email = 'guspicudre@necub.com';
+    const pwd = 'tester123';
+    try {
+      await performLogin(email, pwd);
+      await AsyncStorage.setItem('rememberedEmail', email);
+      await (refresh?.() ?? Promise.resolve());
+      setLoading(false);
+      router.replace('/main/explore');
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      setError(msg);
+      setLoading(false);
+    }
+  };
+
   return (
     <ImageBackground
       source={require('../../assets/images/login.png')}
@@ -295,25 +314,26 @@ export default function LoginScreen() {
     >
       <View style={styles.container}>
         <View style={styles.headerWrapper}>
-          {/* dev helper (optional) */}
+          {/* 🔧 DEV BUTTON (commented out to clean page)
           <View style={{ alignItems: 'center', marginTop: 8 }}>
             <TouchableOpacity onPress={clearSavedSession}>
               <Text style={{ fontSize: 12, color: '#888', textDecorationLine: 'underline' }}>
                 Clear saved session (dev)
               </Text>
             </TouchableOpacity>
-          </View>
-
+          </View> 
+          */}
           <Text style={styles.loginTitle}>Log In</Text>
         </View>
 
-        {/* tiny debug line — remove if you don’t want it */}
+        {/* 🔧 DEBUG HEALTH BOX (commented out to clean page)
         {diag ? (
           <View style={styles.debugBox}>
             <Text style={styles.mono}>API: {API_BASE}</Text>
             <Text style={styles.mono}>{diag}</Text>
           </View>
         ) : null}
+        */}
 
         {error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.welcome}>Welcome back!</Text>}
 
@@ -367,7 +387,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity onPress={() => {/* router.push('/login&signup/forgotpass') */}}>
+          <TouchableOpacity onPress={() => { router.push('/login&signup/forgotpass') }}>
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
@@ -386,6 +406,27 @@ export default function LoginScreen() {
             style={styles.loginGradient}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginText}>Log In</Text>}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ✅ Quick Login (demo) */}
+        <TouchableOpacity
+          style={[styles.loginButton, { marginTop: 6 }]}
+          onPress={quickLogin}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={['#22c55e', '#16a34a']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.loginGradient}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginText}>Quick Login (demo)</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -434,6 +475,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
+  // (Commented-out debug styles kept in case you re-enable)
   debugBox: {
     backgroundColor: '#F5F3FF',
     borderColor: '#DDD6FE',
