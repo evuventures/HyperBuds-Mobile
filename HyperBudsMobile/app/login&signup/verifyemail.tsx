@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +24,13 @@ const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
 
-const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
+const safeJson = (t: string) => {
+  try {
+    return t ? JSON.parse(t) : {};
+  } catch {
+    return {};
+  }
+};
 
 const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
   Promise.race([
@@ -45,8 +52,9 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 100
         msg.includes('Network request failed') ||
         msg.includes('Failed to fetch') ||
         msg.includes('Network');
-      const delay = (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) + Math.floor(Math.random() * 250);
-      await new Promise(r => setTimeout(r, delay));
+      const delay =
+        (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) + Math.floor(Math.random() * 250);
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
 }
@@ -62,23 +70,37 @@ export default function VerifyEmailScreen() {
   const params = useLocalSearchParams<{ email?: string }>();
 
   const [email, setEmail] = useState<string>(params?.email || '');
+  const [hint, setHint] = useState<string>('');
+
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string>('');
 
-  // Pull pendingSignup.* from storage if not provided
+  // New: fallback password input if AsyncStorage doesn't have one
+  const [hasStoredPassword, setHasStoredPassword] = useState<boolean>(true);
+  const [fallbackPw, setFallbackPw] = useState<string>('');
+  const [showPw, setShowPw] = useState<boolean>(false);
+
+  // Pull pendingSignup.* from storage if not provided; also see if password exists
   useEffect(() => {
     (async () => {
       try {
-        if (!email) {
+        let e = email;
+        if (!e) {
           const storedEmail = await AsyncStorage.getItem('pendingSignup.email');
+          if (storedEmail) e = storedEmail;
           if (storedEmail) setEmail(storedEmail);
         }
-        const e = await AsyncStorage.getItem('pendingSignup.email');
         if (e) setHint(maskEmail(e));
-      } catch {}
+
+        const storedPassword = await AsyncStorage.getItem('pendingSignup.password');
+        setHasStoredPassword(!!storedPassword);
+      } catch {
+        // If anything fails, we’ll just show the fallback input
+        setHasStoredPassword(false);
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const maskEmail = (addr?: string | null) => {
@@ -98,11 +120,15 @@ export default function VerifyEmailScreen() {
     setError(null);
     try {
       const r = await withRetry(async () => {
-        return await fetchWithTimeout(`${API_BASE}/auth/verify-email/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ email }),
-        }, 30000);
+        return await fetchWithTimeout(
+          `${API_BASE}/auth/verify-email/send`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ email }),
+          },
+          30000
+        );
       });
       if (!r.ok) {
         const t = await r.text();
@@ -121,30 +147,39 @@ export default function VerifyEmailScreen() {
     setLoading(true);
     setError(null);
     try {
-      // Get the pending credentials saved at signup
-      const storedEmail = email || (await AsyncStorage.getItem('pendingSignup.email'));
+      // Get pending credentials saved at signup
+      const storedEmail =
+        email?.trim() || (await AsyncStorage.getItem('pendingSignup.email')) || '';
       const storedPassword = await AsyncStorage.getItem('pendingSignup.password');
+      const passwordToUse = storedPassword || fallbackPw;
 
-      if (!storedEmail || !storedPassword) {
-        throw new Error('We’re missing your signup credentials. Please log in manually.');
+      if (!storedEmail || !passwordToUse) {
+        throw new Error(
+          'We’re missing your signup credentials. Please enter your password below or log in manually.'
+        );
       }
 
       // Try to log in — if email is verified, this should now succeed
       const res = await withRetry(async () => {
-        return await fetchWithTimeout(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ email: storedEmail.trim(), password: storedPassword }),
-        }, 30000);
+        return await fetchWithTimeout(
+          `${API_BASE}/auth/login`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ email: storedEmail.trim(), password: passwordToUse }),
+          },
+          30000
+        );
       });
 
       const text = await res.text();
       const data = safeJson(text);
       if (!res.ok) {
         const msg = extractLoginError(res.status, data);
-        // Keep UX clear: most common cause is "not verified yet"
         if (/verify/i.test(msg)) {
-          throw new Error('It looks like your email is not verified yet. Please tap the link in the email, then press Continue here.');
+          throw new Error(
+            'It looks like your email is not verified yet. Please tap the link in the email, then press Continue here.'
+          );
         }
         throw new Error(msg);
       }
@@ -163,7 +198,7 @@ export default function VerifyEmailScreen() {
         ['isLoggedIn', 'true'],
       ]);
 
-      // Cleanup pending creds
+      // Cleanup pending creds (we’re done with them)
       await AsyncStorage.multiRemove(['pendingSignup.email', 'pendingSignup.password']);
 
       // Go to onboarding
@@ -177,7 +212,7 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Background decorations */}
+      {/* Decorative background */}
       <Image source={require('../../assets/images/circle1.png')} style={styles.leftcircleimage} />
       <Image source={require('../../assets/images/codeverifybottom.png')} style={styles.bottompoly} />
       <Image source={require('../../assets/images/codeverifyright.png')} style={styles.rightpoly} />
@@ -195,9 +230,37 @@ export default function VerifyEmailScreen() {
         Please open your email app, tap the link to verify, then return here and press Continue.
       </Text>
 
+      {/* If we don't have a stored password, show a fallback password field */}
+      {!hasStoredPassword && (
+        <View style={{ width: '100%', marginTop: 12 }}>
+          <Text style={{ marginBottom: 6, color: '#111', fontWeight: '600' }}>
+            Enter your password to continue
+          </Text>
+          <View style={styles.passwordRow}>
+            <TextInput
+              value={fallbackPw}
+              onChangeText={setFallbackPw}
+              secureTextEntry={!showPw}
+              placeholder="Password"
+              placeholderTextColor="#999"
+              autoCapitalize="none"
+              style={styles.passwordInput}
+            />
+            <TouchableOpacity onPress={() => setShowPw((s) => !s)} style={styles.eyeBtn} accessibilityRole="button">
+              <Ionicons name={showPw ? 'eye-off' : 'eye'} size={20} color="#555" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Continue */}
       <TouchableOpacity style={styles.primaryButton} onPress={continueAfterVerify} disabled={loading}>
-        <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryGradient}>
+        <LinearGradient
+          colors={['#3B82F6', '#9333EA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.primaryGradient}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}
         </LinearGradient>
       </TouchableOpacity>
@@ -206,11 +269,7 @@ export default function VerifyEmailScreen() {
       <View style={styles.resendContainer}>
         <Text style={styles.resendText}>Didn’t get the email?</Text>
         <TouchableOpacity onPress={resendEmail} disabled={resending} style={{ paddingVertical: 6 }}>
-          {resending ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.resendLink}>Resend verification email</Text>
-          )}
+          {resending ? <ActivityIndicator /> : <Text style={styles.resendLink}>Resend verification email</Text>}
         </TouchableOpacity>
       </View>
 
@@ -222,6 +281,7 @@ export default function VerifyEmailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 24 },
   back: { position: 'absolute', top: Platform.select({ ios: 30, android: 16 }), left: 20 },
+
   title: {
     marginTop: 90,
     fontSize: 42,
@@ -248,4 +308,25 @@ const styles = StyleSheet.create({
   leftcircleimage: { position: 'absolute', top: 0, left: -50, width: 250, height: 250, resizeMode: 'contain', zIndex: -1 },
   bottompoly: { position: 'absolute', bottom: -30, left: 80, width: 125, height: 125, resizeMode: 'contain', zIndex: -1 },
   rightpoly: { position: 'absolute', top: 250, right: -30, width: 100, height: 100, resizeMode: 'contain', zIndex: -1 },
+
+  // Password fallback UI
+  passwordRow: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
 });

@@ -291,7 +291,7 @@ export default function LoginScreen() {
   const quickLogin = async () => {
     setError(null);
     setLoading(true);
-    const email = 'guspicudre@necub.com';
+    const email = 'pipowek227@ncien.com';
     const pwd = 'tester123';
     try {
       await performLogin(email, pwd);

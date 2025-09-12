@@ -1,5 +1,5 @@
 // app/profile/editprofile.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -19,13 +19,16 @@ import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
-/** === API base (Render) === */
+
+/** API base */
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || "").trim() ||
   "https://api-hyperbuds-backend.onrender.com/api/v1";
 
 /* ----------------------------- Allowed niches ----------------------------- */
+
 const VALID_NICHES = [
   "beauty","gaming","music","fitness","food","travel","fashion","tech",
   "comedy","education","lifestyle","art","dance","sports","business","health","other",
@@ -50,7 +53,6 @@ type ProfileModel = {
     twitter?: string;
     linkedin?: string;
   };
-  /** ✅ Added so we can send location to backend (to avoid $geoNear warnings) */
   location?: {
     country?: string;
     state?: string;
@@ -78,6 +80,7 @@ type PutUsersMeBody = {
 };
 
 /* --------------------------------- Utils --------------------------------- */
+
 const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
 
 const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
@@ -105,18 +108,17 @@ async function tryRefreshToken(): Promise<boolean> {
   } catch { return false; }
 }
 
-/** Auth-aware fetch: adds Authorization, refreshes once on 401, retries. */
+/** Auth-aware fetch */
 async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
   const accessToken = await AsyncStorage.getItem("auth.accessToken");
-
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
     ...(init.headers as Record<string, string>),
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
   };
-
   const go = () => fetchWithTimeout(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
+
   let res = await go();
   if (res.status === 401) {
     const refreshed = await tryRefreshToken();
@@ -132,11 +134,11 @@ async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000)
 
 /** Keep uploads small & fast. */
 async function processImage(uri: string, kind: "avatar" | "cover") {
-  const maxW = kind === "avatar" ? 512 : 1600;
+  const maxW = kind === "avatar" ? 640 : 1920;
   const result = await ImageManipulator.manipulateAsync(
     uri,
     [{ resize: { width: maxW } }],
-    { compress: kind === "avatar" ? 0.7 : 0.65, format: ImageManipulator.SaveFormat.JPEG }
+    { compress: kind === "avatar" ? 0.75 : 0.7, format: ImageManipulator.SaveFormat.JPEG }
   );
   return result.uri;
 }
@@ -144,6 +146,7 @@ async function processImage(uri: string, kind: "avatar" | "cover") {
 /* ----------------------------- Component ----------------------------- */
 export default function EditProfileScreen() {
   const router = useRouter();
+  const placesRef = useRef<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -153,7 +156,7 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState<string>("");
   const [bio, setBio] = useState("");
 
-  // Images (local state)
+  // Images (local or remote URL)
   const [avatar, setAvatar] = useState<string | null>(null);
   const [cover, setCover] = useState<string | null>(null);
 
@@ -179,19 +182,21 @@ export default function EditProfileScreen() {
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
 
-  // Password visibility toggles (default hidden)
+  // Password visibility toggles
   const [showCurrentPwd, setShowCurrentPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
-  // ✅ NEW: Location inputs to satisfy backend geo requirements
+  // Location (country / state / city + coords [lng, lat])
   const [country, setCountry] = useState<string>("");
   const [locState, setLocState] = useState<string>("");
   const [city, setCity] = useState<string>("");
+  const [coords, setCoords] = useState<[number, number] | null>(null);
 
   // Small action loaders
   const [updatingEmail, setUpdatingEmail] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
+  
 
   /* ------------------------------ Load profile ------------------------------ */
   useEffect(() => {
@@ -209,14 +214,12 @@ export default function EditProfileScreen() {
         setAvatar(p.avatar || null);
         setCover(p.coverImage || null);
 
-        // niches
-        const incoming = Array.isArray(p.niche) ? p.niche : [];
-        const valid = incoming
+        const incomingRaw = Array.isArray(p.niche) ? p.niche : [];
+        const valid = incomingRaw
           .filter((n): n is ValidNiche => (VALID_NICHES as readonly string[]).includes(n))
           .slice(0, 5) as ValidNiche[];
         setSelectedNiches(valid);
 
-        // socials
         const s = p.socialLinks || {};
         setSocials(prev =>
           prev.map(it => ({ ...it, value: (s as any)[it.key] ? String((s as any)[it.key]) : "" }))
@@ -224,11 +227,18 @@ export default function EditProfileScreen() {
 
         setEmail(data?.user?.email || "");
 
-        /** ✅ Load existing location into inputs (if present) */
+        // load existing location
         if (p.location) {
           setCountry(p.location.country || "");
           setLocState(p.location.state || "");
           setCity(p.location.city || "");
+          if (Array.isArray(p.location.coordinates)
+              && typeof p.location.coordinates[0] === "number"
+              && typeof p.location.coordinates[1] === "number") {
+            setCoords([p.location.coordinates[0], p.location.coordinates[1]]);
+          }
+          const label = [p.location.city, p.location.state, p.location.country].filter(Boolean).join(", ");
+          if (label) setTimeout(() => placesRef.current?.setAddressText(label), 0);
         }
       } catch (e: any) {
         Alert.alert("Load error", e?.message || "Could not load your profile.");
@@ -247,13 +257,11 @@ export default function EditProfileScreen() {
     }
 
     const aspect: [number, number] = kind === "avatar" ? [1, 1] : [3, 1];
-
     const result = await ImagePicker.launchImageLibraryAsync({
-      // @ts-ignore — type widen for current expo-image-picker versions
-      mediaTypes: ["images"],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect,
-      quality: 0.85,
+      quality: 0.9,
     });
 
     if (result.canceled) return;
@@ -263,19 +271,45 @@ export default function EditProfileScreen() {
     else setCover(uri);
   };
 
-  /** Upload to /profiles/upload-media — server stores avatar/cover. */
-  async function uploadIfLocal(uri: string | null, kind: "avatar" | "cover") {
-    if (!uri) return;
-    if (/^https?:\/\//i.test(uri)) return; // already remote
+  /** Upload exactly as per API docs: POST /profiles/upload-media with { file, type } */
+  async function uploadIfLocal(uri: string | null, kind: "avatar" | "cover"): Promise<string | null> {
+    if (!uri) return null;
+    if (/^https?:\/\//i.test(uri)) return uri;
+
     const processed = await processImage(uri, kind);
     const fd = new FormData();
-    fd.append("file", { uri: processed, type: "image/jpeg", name: `${kind}.jpg` } as any);
-    fd.append("type", kind === "avatar" ? "avatar" : "cover");
-    const up = await apiFetch("/profiles/upload-media", { method: "POST", body: fd }, 30000);
-    const upData = safeJson(await up.text());
-    if (!up.ok || !upData?.url) {
-      throw new Error(upData?.message || `Upload failed (${up.status})`);
+    fd.append("file", {
+      uri: processed,
+      type: "image/jpeg",
+      name: `${kind}-${Date.now()}.jpg`,
+    } as any);
+    fd.append("type", kind); // 'avatar' | 'cover'
+
+    const res = await apiFetch(`/profiles/upload-media`, {
+      method: "POST",
+      body: fd,
+    }, 60000);
+
+    const text = await res.text();
+    const data = safeJson(text);
+
+    if (!res.ok) {
+      // Surface backend message to help debugging (size, auth, etc.)
+      throw new Error(data?.message || text || `Upload failed (${res.status})`);
     }
+
+    // API may respond with a url/location/publicUrl
+    const url: string | undefined = data?.url || data?.location || data?.publicUrl;
+    return url ?? null;
+  }
+
+  /** Save profile helper: prefers PATCH /profiles/me, falls back to PUT */
+  async function saveProfile(payload: Partial<ProfileModel>) {
+    let res = await apiFetch("/profiles/me", { method: "PATCH", body: JSON.stringify(payload) }, 30000);
+    if (!res.ok && (res.status === 404 || res.status === 405)) {
+      res = await apiFetch("/profiles/me", { method: "PUT", body: JSON.stringify(payload) }, 30000);
+    }
+    return res;
   }
 
   /* ------------------------------ Save / Update ------------------------------ */
@@ -283,12 +317,15 @@ export default function EditProfileScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      // Upload media if picked
-      await uploadIfLocal(avatar, "avatar");
-      await uploadIfLocal(cover, "cover");
+      const uploadedAvatarUrl = await uploadIfLocal(avatar, "avatar");
+      const uploadedCoverUrl  = await uploadIfLocal(cover,  "cover");
 
-      // Enforce valid niches & max 5
-      const niche = selectedNiches
+      const avatarUrlToSend =
+        uploadedAvatarUrl || (avatar && /^https?:\/\//i.test(avatar) ? avatar : undefined);
+      const coverUrlToSend  =
+        uploadedCoverUrl  || (cover  && /^https?:\/\//i.test(cover)  ? cover  : undefined);
+
+      const niche = (Array.isArray(selectedNiches) ? selectedNiches : [])
         .filter((n): n is ValidNiche => (VALID_NICHES as readonly string[]).includes(n))
         .slice(0, 5);
 
@@ -297,32 +334,30 @@ export default function EditProfileScreen() {
         return acc;
       }, {} as NonNullable<ProfileModel["socialLinks"]>);
 
-      // PUT profile (no avatar/coverImage here)
+      const finalCoords: [number, number] =
+        (Array.isArray(coords) && typeof coords[0] === "number" && typeof coords[1] === "number")
+          ? coords
+          : [-84.388, 33.749];
+
       const payload: Partial<ProfileModel> = {
         displayName: displayName || undefined,
         username: username || undefined,
         bio,
         niche,
         socialLinks,
-
-        /** ✅ Send location so backend $geoNear has a numeric point.
-         *  ⚠️ TEMP COORDS BELOW — delete/replace with real long/lat later.
-         *  Using Atlanta [-84.388, 33.749] as sample [lng, lat].
-         */
+        ...(avatarUrlToSend ? { avatar: avatarUrlToSend } : {}),
+        ...(coverUrlToSend  ? { coverImage: coverUrlToSend } : {}),
         location: {
           country: country || "United States",
           state: locState || "",
           city: city || "",
-          coordinates: [-84.388, 33.749], // <-- TEMP: replace with real coordinates later
+          coordinates: finalCoords,
         },
       };
 
-      const r = await apiFetch("/profiles/me", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      }, 30000);
-      const d = safeJson(await r.text());
-      if (!r.ok) throw new Error(d?.message || `Save failed (${r.status})`);
+      const res = await saveProfile(payload);
+      const d = safeJson(await res.text());
+      if (!res.ok) throw new Error(d?.message || `Save failed (${res.status})`);
 
       Alert.alert("Saved", "Your profile was updated.", [
         { text: "OK", onPress: () => router.push("/profile/profile") },
@@ -346,10 +381,8 @@ export default function EditProfileScreen() {
       }, 30000);
       const d = safeJson(await r.text());
       if (!r.ok) throw new Error(d?.message || `Update email failed (${r.status})`);
-
       setEmail(newEmail.trim());
       setNewEmail(""); setConfirmNewEmail("");
-
       Alert.alert("Email updated", "Your email was updated. If verification is required, check your inbox.", [
         { text: "OK", onPress: () => router.replace("/profile/profile") },
       ]);
@@ -373,7 +406,6 @@ export default function EditProfileScreen() {
       const d = safeJson(await r.text());
       if (!r.ok) throw new Error(d?.message || `Update password failed (${r.status})`);
       setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword("");
-
       Alert.alert("Password updated", "Your password was changed successfully.", [
         { text: "OK", onPress: () => router.replace("/profile/profile") },
       ]);
@@ -393,6 +425,10 @@ export default function EditProfileScreen() {
       </View>
     );
   }
+
+  const hasPlacesKey =
+    typeof process?.env?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY === "string" &&
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY.trim() !== "";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -462,32 +498,111 @@ export default function EditProfileScreen() {
             numberOfLines={4}
           />
 
-          {/* ✅ Location inputs (minimal addition) */}
+          {/* Location */}
           <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Location</Text>
-          <TextInput
-            style={styles.input}
-            placeholderTextColor="#666"
-            placeholder="Country"
-            value={country}
-            onChangeText={setCountry}
-            autoCapitalize="words"
-          />
-          <TextInput
-            style={styles.input}
-            placeholderTextColor="#666"
-            placeholder="State / Region"
-            value={locState}
-            onChangeText={setLocState}
-            autoCapitalize="words"
-          />
-          <TextInput
-            style={styles.input}
-            placeholderTextColor="#666"
-            placeholder="City"
-            value={city}
-            onChangeText={setCity}
-            autoCapitalize="words"
-          />
+
+          {hasPlacesKey ? (
+            <GooglePlacesAutocomplete
+              ref={placesRef}
+              placeholder="Search your city"
+              fetchDetails
+              onPress={(data, details) => {
+                try {
+                  const comps = (details?.address_components || []) as any[];
+                  const find = (type: string) =>
+                    comps.find((c: any) => Array.isArray(c?.types) && c.types.includes(type));
+
+                  const countryComp = find("country");
+                  const stateComp =
+                    find("administrative_area_level_1") ||
+                    find("administrative_area_level_2");
+                  const cityComp =
+                    find("locality") ||
+                    find("sublocality") ||
+                    find("postal_town");
+
+                  const nextCountry = countryComp?.long_name || "";
+                  const nextState = stateComp?.long_name || "";
+                  const nextCity = cityComp?.long_name || "";
+
+                  setCountry(nextCountry);
+                  setLocState(nextState);
+                  setCity(nextCity);
+
+                  const lat = details?.geometry?.location?.lat;
+                  const lng = details?.geometry?.location?.lng;
+                  if (typeof lat === "number" && typeof lng === "number") {
+                    setCoords([lng, lat]);
+                  }
+
+                  const label = [nextCity, nextState, nextCountry].filter(Boolean).join(", ");
+                  placesRef.current?.setAddressText(label);
+                } catch (e) {
+                  console.warn("Places parse error", e);
+                }
+              }}
+              query={{
+                key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+                language: "en",
+                types: "(cities)",
+              }}
+              renderRow={(row) => {
+                const main = row?.structured_formatting?.main_text ?? row?.description ?? "";
+                const secondary = row?.structured_formatting?.secondary_text ?? "";
+                return (
+                  <View style={{ paddingVertical: 10, paddingHorizontal: 12 }}>
+                    <Text style={{ fontSize: 15, color: "#111", fontWeight: "600" }}>{main}</Text>
+                    {!!secondary && <Text style={{ fontSize: 13, color: "#666" }}>{secondary}</Text>}
+                  </View>
+                );
+              }}
+              enablePoweredByContainer={false}
+              styles={{
+                container: { width: "100%", marginBottom: 10 },
+                textInput: {
+                  height: 44, borderColor: "#ccc", borderWidth: 1, borderRadius: 10,
+                  paddingHorizontal: 10, color: "#000", backgroundColor: "#fff",
+                },
+                listView: {
+                  backgroundColor: "#fff",
+                  borderColor: "#eee",
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  marginTop: 6,
+                  elevation: 4,
+                  zIndex: 50,
+                },
+              }}
+              onFail={(err) => console.warn("Places error", err)}
+            />
+          ) : (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholderTextColor="#666"
+                placeholder="Country"
+                value={country}
+                onChangeText={setCountry}
+                autoCapitalize="words"
+              />
+              <TextInput
+                style={styles.input}
+                placeholderTextColor="#666"
+                placeholder="State / Region"
+                value={locState}
+                onChangeText={setLocState}
+                autoCapitalize="words"
+              />
+              <TextInput
+                style={styles.input}
+                placeholderTextColor="#666"
+                placeholder="City"
+                value={city}
+                onChangeText={setCity}
+                autoCapitalize="words"
+              />
+            </>
+          )}
 
           {/* Niches */}
           <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Niches</Text>
@@ -503,7 +618,7 @@ export default function EditProfileScreen() {
                     setSelectedNiches((prev) => {
                       const has = prev.includes(n);
                       if (has) return prev.filter((x) => x !== n) as ValidNiche[];
-                      if (prev.length >= 5) return prev; // enforce max 5
+                      if (prev.length >= 5) return prev;
                       return [...prev, n] as ValidNiche[];
                     });
                   }}
@@ -539,7 +654,7 @@ export default function EditProfileScreen() {
             ))}
           </View>
 
-          {/* === Save (above Account) === */}
+          {/* Save */}
           <TouchableOpacity
             style={[styles.button, saving && { opacity: 0.7, pointerEvents: "none" }]}
             disabled={saving}
@@ -592,7 +707,6 @@ export default function EditProfileScreen() {
               autoCorrect={false}
             />
 
-            {/* Smaller button */}
             <TouchableOpacity
               style={[styles.smallButton, updatingEmail && { opacity: 0.7 }]}
               disabled={updatingEmail}
@@ -609,11 +723,10 @@ export default function EditProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Change Password (with eye toggles) */}
+          {/* Change Password */}
           <View style={styles.cardBlock}>
             <Text style={styles.blockTitle}>Change Password</Text>
 
-            {/* Current Password */}
             <View style={styles.inputRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -625,7 +738,7 @@ export default function EditProfileScreen() {
                 autoCorrect={false}
                 textContentType="password"
                 autoComplete="password"
-                secureTextEntry={!showCurrentPwd} // hidden by default
+                secureTextEntry={!showCurrentPwd}
                 enablesReturnKeyAutomatically
               />
               <TouchableOpacity
@@ -638,7 +751,6 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* New Password */}
             <View style={styles.inputRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -650,7 +762,7 @@ export default function EditProfileScreen() {
                 autoCorrect={false}
                 textContentType="newPassword"
                 autoComplete="password-new"
-                secureTextEntry={!showNewPwd} // hidden by default
+                secureTextEntry={!showNewPwd}
                 enablesReturnKeyAutomatically
               />
               <TouchableOpacity
@@ -663,7 +775,6 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Confirm New Password */}
             <View style={styles.inputRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -675,7 +786,7 @@ export default function EditProfileScreen() {
                 autoCorrect={false}
                 textContentType="password"
                 autoComplete="password"
-                secureTextEntry={!showConfirmPwd} // hidden by default
+                secureTextEntry={!showConfirmPwd}
                 enablesReturnKeyAutomatically
               />
               <TouchableOpacity
@@ -688,7 +799,6 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Smaller button */}
             <TouchableOpacity
               style={[styles.smallButton, updatingPwd && { opacity: 0.7 }]}
               disabled={updatingPwd}
@@ -847,16 +957,13 @@ const styles = StyleSheet.create({
     borderColor: "#e6e6e6",
     borderRadius: 12,
     backgroundColor: "#fff",
-    marginTop: 8,
   },
   blockTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 8 },
 
-  /* Buttons */
   button: { borderRadius: 10, overflow: "hidden", marginTop: 16, alignSelf: "center" },
   gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: "center", borderRadius: 10 },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
 
-  /* Smaller buttons for email/password actions */
   smallButton: { borderRadius: 10, overflow: "hidden", marginTop: 12, alignSelf: "center" },
   smallGradient: { paddingVertical: 10, paddingHorizontal: 24, alignItems: "center", borderRadius: 10 },
   smallButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
