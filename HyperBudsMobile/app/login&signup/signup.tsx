@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const screenOptions = { headerShown: false };
 
@@ -27,15 +28,18 @@ const API_BASE =
 
 const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
 
-const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
+const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 60000) =>
   Promise.race([
     fetch(url, options),
     new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('Request timeout')), ms)),
   ]) as Promise<Response>;
 
+/**
+ * IMPORTANT: Do NOT retry POST /auth/register unless the server supports idempotency keys.
+ * We'll keep a generic withRetry for non-creating operations.
+ */
 async function withRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 1000): Promise<T> {
   let attempt = 0;
-  // total attempts = retries + 1
   for (;;) {
     try {
       return await fn();
@@ -48,7 +52,8 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 100
         msg.includes('Network request failed') ||
         msg.includes('Failed to fetch') ||
         msg.includes('Network');
-      const delay = (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) + Math.floor(Math.random() * 250);
+      const delay =
+        (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) + Math.floor(Math.random() * 250);
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -60,6 +65,37 @@ const extractRegisterError = (status: number, payload: any) => {
   if (status === 400) return 'Invalid signup data.';
   return 'Signup failed. Please try again.';
 };
+
+/* ----------------------- Idempotency + Pending Guard ----------------------- */
+
+const PENDING_KEY_PREFIX = 'signup:pending:';
+
+const genIdempotencyKey = () =>
+  `hb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+/** Save a short-lived pending marker so we can "optimistic proceed" on timeouts. */
+async function setPendingSignup(email: string, idKey: string) {
+  const key = `${PENDING_KEY_PREFIX}${email.toLowerCase()}`;
+  const value = JSON.stringify({ idKey, ts: Date.now() });
+  await AsyncStorage.setItem(key, value);
+}
+
+async function clearPendingSignup(email: string) {
+  const key = `${PENDING_KEY_PREFIX}${email.toLowerCase()}`;
+  await AsyncStorage.removeItem(key);
+}
+
+async function getPendingSignup(email: string): Promise<{ idKey: string; ts: number } | null> {
+  const key = `${PENDING_KEY_PREFIX}${email.toLowerCase()}`;
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.ts === 'number' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------ Component ------------------------------ */
 
@@ -85,73 +121,128 @@ export default function SignupScreen() {
     return null;
   };
 
-  // Calls the endpoint you confirmed works to send the verification email
+  // Send verification email (safe to retry)
   const sendVerificationEmail = async (address: string) => {
     const res = await withRetry(async () => {
-      return await fetchWithTimeout(`${API_BASE}/auth/verify-email/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email: address }),
-      }, 30000);
-    });
+      return await fetchWithTimeout(
+        `${API_BASE}/auth/verify-email/send`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: address }),
+        },
+        30000
+      );
+    }, 2);
 
-    // It might return 200/204/etc. We don't need the body for navigation.
     if (!res.ok) {
       const text = await res.text();
       const data = safeJson(text);
-      // Don’t block navigation, but surface the error on this screen.
       throw new Error(data?.message || `Failed to send verification email (${res.status}).`);
     }
+  };
+
+  // Navigate to verify screen
+  const goToVerify = (address: string, banner?: string) => {
+    router.push({
+      pathname: '/login&signup/verifyemail',
+      params: { email: address, ...(banner ? { banner } : {}) },
+    });
   };
 
   const handleSignup = async () => {
     const v = validate();
     if (v) { setError(v); return; }
 
+    if (loading) return; // extra guard against double taps
+
     setLoading(true);
     setError(null);
 
+    const trimmedEmail = email.trim().toLowerCase();
+    const idemKey = genIdempotencyKey();
+
     try {
-      // 1) Register
-      const regRes = await withRetry(async () => {
-        return await fetchWithTimeout(`${API_BASE}/auth/register`, {
+      // Mark this signup as "pending" in case we time out
+      await setPendingSignup(trimmedEmail, idemKey);
+
+      // 1) Register (NO RETRY here—avoid duplicate account creation)
+      const regRes = await fetchWithTimeout(
+        `${API_BASE}/auth/register`,
+        {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ email: email.trim(), password }),
-        }, 30000);
-      });
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            // Generic idempotency signal (server may ignore; future-proof if added)
+            'Idempotency-Key': idemKey,
+            'X-Client-Timestamp': String(Date.now()),
+          },
+          body: JSON.stringify({ email: trimmedEmail, password }),
+        },
+        60000 // allow cold-start
+      );
 
       const regText = await regRes.text();
       const regData = safeJson(regText);
 
       if (!regRes.ok) {
+        // If the server says 409, treat as "likely created already" (race/timeout)
+        if (regRes.status === 409) {
+          try {
+            await sendVerificationEmail(trimmedEmail);
+            goToVerify(trimmedEmail, 'We found an existing signup for this email. Check your inbox for the verification link.');
+          } catch (e: any) {
+            setError('Email already in use. If you just signed up, check your inbox for a verification link—or try logging in.');
+          }
+          return;
+        }
+
         setError(extractRegisterError(regRes.status, regData));
-        setLoading(false);
         return;
       }
 
-      // 2) Immediately send verification email
+      // 2) Send verification email
       try {
-        await sendVerificationEmail(email.trim());
+        await sendVerificationEmail(trimmedEmail);
       } catch (e: any) {
-        // Non-fatal: still proceed to verify screen where user can retry
+        // Non-fatal: proceed to verify screen where user can retry
         setError(e?.message || 'Could not send verification email right now. You can retry on the next screen.');
       }
 
-      // 3) Go to verify screen and pass along the email (Expo Router params)
-      router.push({
-        pathname: '/login&signup/verifyemail',
-        params: { email: email.trim() },
-      });
+      // 3) Go to verify
+      goToVerify(trimmedEmail);
     } catch (err: any) {
       const msg = String(err?.message || err);
-      setError(
-        msg === 'Request timeout'
-          ? 'Request timed out. The server may be cold-starting — please try again.'
-          : msg
-      );
+
+      // If we timed out or hit a network error, we may have a "ghost success".
+      // If we recently marked this email as pending, optimistically proceed
+      // by sending the verification email and navigating.
+      if (
+        msg === 'Request timeout' ||
+        msg.includes('Network request failed') ||
+        msg.includes('Failed to fetch') ||
+        msg.includes('Network')
+      ) {
+        try {
+          const pending = await getPendingSignup(trimmedEmail);
+          if (pending && Date.now() - pending.ts < 2 * 60 * 1000) {
+            // Optimistic proceed
+            await sendVerificationEmail(trimmedEmail);
+            goToVerify(trimmedEmail, 'Your signup may have completed. Check your email for the verification link.');
+            return;
+          }
+        } catch {
+          // fall through to error
+        }
+        setError('Request timed out. The server may be cold-starting — please try again.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
+      // Clear the pending marker regardless—fresh attempts will set a new one
+      await clearPendingSignup(trimmedEmail);
     }
   };
 
@@ -264,6 +355,7 @@ export default function SignupScreen() {
               <View style={styles.dividerRow}>
                 <View style={styles.divider} />
                 <Text style={styles.continueWith}>Continue with</Text>
+                <View className="divider" />
                 <View style={styles.divider} />
               </View>
 

@@ -17,6 +17,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import Swiper from "react-native-swiper";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router"; // ⬅️ added
+
+/** === Change this if your explore screen path is different === */
+const EXPLORE_PATH = "/main/explore";
 
 /** === API base (Render prod) === */
 const API_BASE =
@@ -114,6 +118,7 @@ type SupportedSocial = (typeof SUPPORTED_SOCIALS)[number];
 
 /* -------------------------------- Component ------------------------------- */
 export default function BuildProfileScreen() {
+  const router = useRouter(); // ⬅️ added
   const swiperRef = useRef<Swiper>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -141,7 +146,7 @@ export default function BuildProfileScreen() {
     { key: "linkedin", label: "LinkedIn", icon: require("../../assets/images/linkedin.png"), value: "" },
   ]);
 
-  /* --------------------- Manager’s request: log + use avatar --------------------- */
+  /* --------------------- Prefill from /users/me --------------------- */
   useEffect(() => {
     (async () => {
       try {
@@ -279,7 +284,12 @@ export default function BuildProfileScreen() {
       }
 
       console.log("✅ Profile saved:", data);
-      Alert.alert("Success", "Your profile is set!", [{ text: "OK" }]);
+
+      // mark onboarding done (optional for your logic)
+      await AsyncStorage.setItem("onboarding.completed", "1");
+
+      // ⬇️ Jump straight to Explore
+      router.replace(EXPLORE_PATH);
     } catch (e: any) {
       Alert.alert("Submission error", e?.message || "Network request failed");
     } finally {
@@ -295,7 +305,7 @@ export default function BuildProfileScreen() {
         <Text style={{ marginTop: 12, color: "#333" }}>Loading…</Text>
       </View>
     );
-    }
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -344,7 +354,7 @@ export default function BuildProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* SLIDE 2 - Niches (chips matching backend allow-list) */}
+        {/* SLIDE 2 - Niches */}
         <ScrollView contentContainerStyle={[styles.container, { alignItems: "stretch" }]} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Choose Your Niche</Text>
           <Text style={styles.subtext}>Pick up to 5 that best describe you</Text>
