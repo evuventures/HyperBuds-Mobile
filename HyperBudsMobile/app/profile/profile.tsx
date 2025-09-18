@@ -1,6 +1,6 @@
 // app/profile/profile.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, Link, type Href } from 'expo-router';
 import {
   SafeAreaView,
   View,
@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const defaultAvatar = require('../../assets/images/avatar.png');
@@ -27,6 +28,9 @@ const defaultAvatar = require('../../assets/images/avatar.png');
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
+
+// If your payments screen lives in a route group, change this to "/(main)/payments/payment", etc.
+const PAYMENTS_HREF: Href = '/payments/subscription';
 
 /* -------------------------------- Types -------------------------------- */
 
@@ -354,7 +358,7 @@ export default function ProfileScreen() {
         {/* Name & Handle */}
         <Text style={styles.username}>{loadingProfile ? 'Loading…' : displayName || 'User'}</Text>
         <Text style={styles.role}>{handle || ''}</Text>
-
+          
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
@@ -370,7 +374,7 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Niches</Text>
           </View>
         </View>
-
+            
         {/* Buttons (Build Profile removed) */}
         <View style={styles.buttonsRow}>
           <TouchableOpacity style={styles.editButton} onPress={() => router.push('/profile/editprofile')}>
@@ -405,6 +409,21 @@ export default function ProfileScreen() {
         ) : (
           <Text style={{ fontSize: 12, color: '#666', marginBottom: 20 }}>No socials linked</Text>
         )}
+
+        {/* Payments entry (typed-safe with <Link />) */}
+        <Link href={PAYMENTS_HREF} asChild>
+          <TouchableOpacity style={{ marginTop: 12 }}>
+            <LinearGradient
+              colors={['#6C63FF', '#A48CFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.paymentBtn}
+            >
+              <Feather name="credit-card" size={16} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.paymentBtnText}> Upgrade </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Link>
 
         {/* Niches */}
         <Text style={styles.sectionTitle}>Niches</Text>
@@ -537,4 +556,22 @@ const styles = StyleSheet.create({
   tagRow: { paddingVertical: 10 },
   tag: { backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 6, marginRight: 10 },
   tagText: { fontSize: 12, color: '#333' },
+  
+  paymentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  paymentBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

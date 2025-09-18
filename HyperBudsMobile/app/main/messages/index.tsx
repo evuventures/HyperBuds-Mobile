@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 
 const HEADER_HEIGHT = 60;
 const threads = [
-  { id: '1', name: 'Ashley Tinsdale', snippet: 'Hey! What’s new at work?', time: '8:32 PM', unread: 1 },
+  { id: '1', name: 'Ashley Johnson', snippet: 'Hey! What’s new at work?', time: '8:32 PM', unread: 1 },
   { id: '2', name: 'Carolina Sara', snippet: 'Today was a long day right?', time: '12:03 PM', unread: 3 },
   { id: '3', name: 'Tony Carol', snippet: 'Wanna work on a new Collaboration…', time: '9:24 AM', unread: 2 },
 ];

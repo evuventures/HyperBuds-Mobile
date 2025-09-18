@@ -296,7 +296,7 @@ export default function BuildProfileScreen() {
       setSubmitting(false);
     }
   };
-
+  
   /* ------------------------------------ UI ----------------------------------- */
   if (loadingMe) {
     return (
