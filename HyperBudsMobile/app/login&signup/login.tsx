@@ -439,20 +439,9 @@ export default function LoginScreen() {
         </View>
 
         {/* Social row (placeholder) */}
-        <View style={styles.socialContainer}>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.continueWith}>Continue with</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <AntDesign name="apple1" size={26} color="black" />
-            <AntDesign name="instagram" size={26} color="#E1306C" />
-            <AntDesign name="google" size={26} color="#DB4437" />
-            <FontAwesome5 name="tiktok" size={24} color="black" />
-          </View>
-        </View>
+        
+          
+        
       </View>
     </ImageBackground>
   );
@@ -536,9 +525,4 @@ const styles = StyleSheet.create({
   signupPrompt: { fontSize: 14, color: '#333' },
   signupLink: { fontSize: 16, fontWeight: '600', color: '#338BFF', marginTop: 4 },
 
-  socialContainer: { marginTop: 1 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  divider: { flex: 1, height: 1, backgroundColor: '#ddd' },
-  continueWith: { marginHorizontal: 10, color: '#888', fontSize: 12 },
-  socialRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 20 },
 });

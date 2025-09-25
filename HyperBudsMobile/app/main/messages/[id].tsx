@@ -353,7 +353,7 @@ export default function ChatScreen() {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
 
-        {/* Optional avatar for the other participant (hydrate later if you wish) */}
+        {/* Optional avatar for the other participant */}
         <View style={styles.avatarPlaceholder}>
           {otherParticipant?.email ? (
             <Initials text={otherParticipant.email} />
@@ -369,9 +369,7 @@ export default function ChatScreen() {
           <Text style={styles.userStatus}>{headerSubtitle}</Text>
         </View>
 
-        <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="call" size={24} color="#fff" />
-        </TouchableOpacity>
+        {/* Phone call button removed */}
         <TouchableOpacity style={styles.iconBtn}>
           <Feather name="more-vertical" size={24} color="#fff" />
         </TouchableOpacity>

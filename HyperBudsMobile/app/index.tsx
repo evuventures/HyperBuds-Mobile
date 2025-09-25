@@ -59,10 +59,7 @@ export default function WelcomePage() {
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* Help link */}
-      <TouchableOpacity>
-        <Text style={styles.helpText}>Help</Text>
-      </TouchableOpacity>
+      
     </View>
   );
 }
@@ -111,11 +108,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
   },
-  helpText: {
-    color: '#2563EB',
-    fontSize: 14,
-    marginTop: 0,
-  },
+  
   bottomLeftPoly: {
     position: 'absolute',
     bottom: -25,

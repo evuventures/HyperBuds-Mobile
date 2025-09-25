@@ -1,5 +1,4 @@
 // app/matchmaker/how-it-works.tsx
-
 import React from 'react';
 import {
   View,
@@ -53,7 +52,7 @@ export default function HowItWorksScreen() {
       {/* Top bar with back arrow */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color="#333" />
+          <Feather name="arrow-left" size={28} color="#333" />
         </TouchableOpacity>
       </View>
 
@@ -72,7 +71,7 @@ export default function HowItWorksScreen() {
 
         <TouchableOpacity
           style={styles.startButton}
-          onPress={() => router.replace('/matchmaker/aimatchmaker')}
+          onPress={() => router.replace('/main/matchmaker/aimatchmaker')}
         >
           <LinearGradient
             colors={['#3B82F6', '#9333EA']}
@@ -91,14 +90,17 @@ export default function HowItWorksScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: {
-    height: 50,
-    justifyContent: 'center',
+    height: 80, // taller header
+    justifyContent: 'flex-end', // push arrow lower
     paddingLeft: 16,
+    paddingBottom: 12, // spacing from bottom of header
   },
   backButton: {
-    width: 32,
-    height: 32,
+    width: 48,  // larger tap area
+    height: 48,
     justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 24, // makes hit area circular
   },
   content: {
     paddingHorizontal: 20,

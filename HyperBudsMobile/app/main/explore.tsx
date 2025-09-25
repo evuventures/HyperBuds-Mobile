@@ -280,7 +280,7 @@ export default function Explore() {
           </View>
 
           {/* Arrow navigates to How it Works */}
-          <TouchableOpacity onPress={() => router.push("/matchmaker/how-it-works")}>
+          <TouchableOpacity onPress={() => router.push('/main/matchmaker/how-it-works')}>
             <Ionicons name="arrow-forward" size={24} color="#9333EA" />
           </TouchableOpacity>
         </View>

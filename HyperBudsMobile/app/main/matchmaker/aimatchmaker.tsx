@@ -301,7 +301,7 @@ export default function AIMatchmakerScreen() {
               source={
                 match.profile?.avatar
                   ? { uri: match.profile.avatar }
-                  : require("../../assets/images/avatar.png")
+                : require("../../../assets/images/avatar.png")
               }
               style={styles.resultAvatar}
             />

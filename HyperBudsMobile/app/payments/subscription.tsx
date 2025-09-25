@@ -11,6 +11,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  TextInput, // ← added
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -21,18 +22,11 @@ import { CardField, useStripe, initStripe } from "@stripe/stripe-react-native";
 /* =========================
    CONFIG & BASE URLS
    ========================= */
-
-// Reuse the same base your other screens use (like profile.tsx)
-// so we don't hit a different domain/CORS/TLS in dev.
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || "").trim() ||
   "https://api-hyperbuds-backend.onrender.com/api/v1";
 
-// ✅ Payments base derived from the same host
 const PAY_API_BASE = `${API_BASE}/payments`;
-
-// Optional alt host for debugging if you really need it later:
-// const ALT_PAY_API_BASE = "https://api.hyperbuds.com/api/v1/payments";
 
 const STRIPE_PUBLISHABLE_KEY =
   (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "").trim();
@@ -164,13 +158,11 @@ async function authedFetch(base: string, path: string, init: RequestInit = {}) {
       const msg = data?.message || `Request failed (${res.status})`;
       const code = data?.code ? ` [${data.code}]` : "";
       const pretty = `${msg}${code}`;
-      // Surface HTTP-level errors too
       console.log("HTTP error:", { url, status: res.status, body: text });
       throw new Error(pretty);
     }
     return data;
   } catch (err: any) {
-    // This is the important part for "Network request failed" style errors.
     console.log("authedFetch network error ->", {
       url,
       message: String(err?.message || err),
@@ -201,6 +193,14 @@ export default function SubscriptionsScreen() {
   const [cardComplete, setCardComplete] = useState(false);
   const [newPMId, setNewPMId] = useState<string | null>(null);
 
+  // Manual (non-functional) card inputs
+  const [showManualCard, setShowManualCard] = useState(true); // default visible per request
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+  const [cardZip, setCardZip] = useState("");
+
   // UX
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -224,7 +224,7 @@ export default function SubscriptionsScreen() {
       try {
         await initStripe({
           publishableKey: STRIPE_PUBLISHABLE_KEY,
-          merchantIdentifier: "merchant.com.hyperbuds", // (iOS) if you add Apple Pay later
+          merchantIdentifier: "merchant.com.hyperbuds",
         });
         setStripeReady(true);
         addDebug("Stripe initialized");
@@ -279,9 +279,8 @@ export default function SubscriptionsScreen() {
       }
       setLoading(true);
 
-      const res = await createPaymentMethod({
-        paymentMethodType: "Card", // ✅ correct field for latest types
-        // paymentMethodData: { billingDetails: { name, email } }, // optional
+      const res = await useStripe().createPaymentMethod({
+        paymentMethodType: "Card",
       });
 
       if (res.error) throw new Error(res.error.message || "Could not create payment method");
@@ -414,7 +413,6 @@ export default function SubscriptionsScreen() {
       }
 
       setLoading(true);
-      // Simple reachability (saved methods)
       await authedFetch(PAY_API_BASE, "/methods", { method: "GET" });
       addDebug("GET /methods ✅ OK");
       Alert.alert("Network OK", `Reached ${PAY_API_BASE}`);
@@ -443,7 +441,7 @@ export default function SubscriptionsScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-        <Text style={styles.headerTitle}>Subscriptions</Text>
+          <Text style={styles.headerTitle}>Subscriptions</Text>
           <TouchableOpacity onPress={() => setDebugOpen((v) => !v)} style={styles.iconBtn}>
             <Feather name={debugOpen ? "terminal" : "info"} size={18} color="#fff" />
           </TouchableOpacity>
@@ -498,30 +496,30 @@ export default function SubscriptionsScreen() {
         contentContainerStyle={{ paddingBottom: 28 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Plans */}
+        {/* Plans — now ONE per row */}
         <Section title="Choose a Plan" icon="star">
-          <View style={styles.planGrid}>
+          <View style={styles.planList}>
             {PLANS.map((plan) => (
               <TouchableOpacity
                 key={plan.key}
                 activeOpacity={0.9}
                 onPress={() => setSelectedPlan(plan.key)}
                 style={[
-                  styles.planCard,
-                  selectedPlan === plan.key && styles.planCardSelected,
-                  plan.featured && styles.planCardFeatured,
+                  styles.planRowCard,
+                  selectedPlan === plan.key && styles.planRowCardSelected,
+                  plan.featured && styles.planRowCardFeatured,
                 ]}
               >
-                <View style={styles.planHeader}>
-                  <Text style={styles.planTitle}>{plan.title}</Text>
+                <View style={styles.planRowHeader}>
+                  <Text style={styles.planRowTitle}>{plan.title}</Text>
                   {selectedPlan === plan.key ? (
                     <Feather name="check-circle" size={18} color="#6C63FF" />
                   ) : (
                     <Feather name="circle" size={18} color="#bbb" />
                   )}
                 </View>
-                <Text style={styles.planPrice}>{plan.priceLabel}</Text>
-                <View style={{ height: 8 }} />
+                <Text style={styles.planRowPrice}>{plan.priceLabel}</Text>
+                <View style={{ height: 6 }} />
                 {plan.features.map((f, i) => (
                   <View key={i} style={styles.planFeatRow}>
                     <Feather name="check" size={14} color="#16a34a" />
@@ -533,7 +531,7 @@ export default function SubscriptionsScreen() {
           </View>
         </Section>
 
-        {/* Payment Methods — PRO LOOK */}
+        {/* Payment Methods */}
         <Section title="Payment Method" icon="credit-card">
           {/* Saved cards */}
           {methods.length ? (
@@ -591,7 +589,7 @@ export default function SubscriptionsScreen() {
           {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Add new card */}
+          {/* Add new card (Stripe) */}
           <TouchableOpacity
             onPress={() => setShowAddCard((v) => !v)}
             style={styles.addCardHeader}
@@ -599,7 +597,7 @@ export default function SubscriptionsScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Feather name="plus-circle" size={18} color="#6C63FF" />
-              <Text style={styles.addCardTitle}>  Add New Card</Text>
+              <Text style={styles.addCardTitle}>  Add New Card (Stripe)</Text>
             </View>
             <Feather name={showAddCard ? "chevron-up" : "chevron-down"} size={18} color="#6C63FF" />
           </TouchableOpacity>
@@ -645,8 +643,69 @@ export default function SubscriptionsScreen() {
             </View>
           ) : null}
 
+          {/* Manual (non-functional) card form */}
+          <View style={[styles.addCardBody, { marginTop: 10 }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={styles.addCardTitle}>Manual Card</Text>
+              <TouchableOpacity onPress={() => setShowManualCard(v => !v)}>
+                <Feather name={showManualCard ? "chevron-up" : "chevron-down"} size={18} color="#6C63FF" />
+              </TouchableOpacity>
+            </View>
+            {showManualCard ? (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Name on card"
+                  placeholderTextColor="#666"
+                  value={cardName}
+                  onChangeText={setCardName}
+                  autoCapitalize="words"
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Card number"
+                  placeholderTextColor="#666"
+                  value={cardNumber}
+                  onChangeText={setCardNumber}
+                  keyboardType="number-pad"
+                />
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="MM/YY"
+                    placeholderTextColor="#666"
+                    value={cardExpiry}
+                    onChangeText={setCardExpiry}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="CVC"
+                    placeholderTextColor="#666"
+                    value={cardCvc}
+                    onChangeText={setCardCvc}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                  />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ZIP / Postal code"
+                  placeholderTextColor="#666"
+                  value={cardZip}
+                  onChangeText={setCardZip}
+                  keyboardType="number-pad"
+                />
+                <Text style={styles.helpTextSmall}>
+                  This form is only for UI input per your request and doesn’t submit anywhere.
+                </Text>
+              </>
+            ) : null}
+          </View>
+
           <Text style={styles.pciNote}>
-            We never see or store raw card details. Card data is securely collected by Stripe.
+            We never see or store raw card details. Card data is securely collected by Stripe when enabled.
           </Text>
         </Section>
 
@@ -792,21 +851,21 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#333" },
 
-  /* Plans */
-  planGrid: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  planCard: {
-    flexBasis: "48%",
+  /* Plans — one per row */
+  planList: { gap: 10 },
+  planRowCard: {
+    width: "100%",
     backgroundColor: "#fafafa",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#eee",
     padding: 12,
   },
-  planCardSelected: { borderColor: "#6C63FF", backgroundColor: "#f5f5ff" },
-  planCardFeatured: { borderColor: "#d8ccff", backgroundColor: "#f9f7ff" },
-  planHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  planTitle: { fontSize: 14, fontWeight: "800", color: "#222" },
-  planPrice: { fontSize: 20, fontWeight: "800", color: "#6C63FF", marginTop: 4 },
+  planRowCardSelected: { borderColor: "#6C63FF", backgroundColor: "#f5f5ff" },
+  planRowCardFeatured: { borderColor: "#d8ccff", backgroundColor: "#f9f7ff" },
+  planRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  planRowTitle: { fontSize: 16, fontWeight: "800", color: "#222" },
+  planRowPrice: { fontSize: 22, fontWeight: "800", color: "#6C63FF", marginTop: 4 },
   planFeatRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   planFeatText: { fontSize: 12, color: "#444" },
 
@@ -873,6 +932,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   stripeWarnText: { color: "#8a6d3b", fontSize: 12, flexShrink: 1 },
+
+  // Manual input form
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#fff",
+    marginBottom: 10,
+    color: "#000",
+  },
 
   pciNote: { fontSize: 11, color: "#666", marginTop: 8 },
 

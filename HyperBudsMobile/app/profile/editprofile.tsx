@@ -1,5 +1,5 @@
 // app/profile/editprofile.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -12,15 +12,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from "react-native";
-import { AntDesign, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
-
 
 /** API base */
 const API_BASE =
@@ -28,7 +27,6 @@ const API_BASE =
   "https://api-hyperbuds-backend.onrender.com/api/v1";
 
 /* ----------------------------- Allowed niches ----------------------------- */
-
 const VALID_NICHES = [
   "beauty","gaming","music","fitness","food","travel","fashion","tech",
   "comedy","education","lifestyle","art","dance","sports","business","health","other",
@@ -43,7 +41,6 @@ type ProfileModel = {
   displayName?: string;
   bio?: string;
   avatar?: string;
-  coverImage?: string;
   niche?: string[];
   socialLinks?: {
     tiktok?: string;
@@ -52,12 +49,6 @@ type ProfileModel = {
     twitch?: string;
     twitter?: string;
     linkedin?: string;
-  };
-  location?: {
-    country?: string;
-    state?: string;
-    city?: string;
-    coordinates?: [number, number]; // [lng, lat]
   };
 };
 
@@ -73,14 +64,7 @@ type UsersMeResponse = {
   profile: ProfileModel;
 };
 
-type PutUsersMeBody = {
-  email?: string;
-  currentPassword?: string;
-  newPassword?: string;
-};
-
 /* --------------------------------- Utils --------------------------------- */
-
 const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
 
 const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
@@ -133,12 +117,11 @@ async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000)
 }
 
 /** Keep uploads small & fast. */
-async function processImage(uri: string, kind: "avatar" | "cover") {
-  const maxW = kind === "avatar" ? 640 : 1920;
+async function processAvatar(uri: string) {
   const result = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: maxW } }],
-    { compress: kind === "avatar" ? 0.75 : 0.7, format: ImageManipulator.SaveFormat.JPEG }
+    [{ resize: { width: 640 } }],
+    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
   );
   return result.uri;
 }
@@ -146,7 +129,6 @@ async function processImage(uri: string, kind: "avatar" | "cover") {
 /* ----------------------------- Component ----------------------------- */
 export default function EditProfileScreen() {
   const router = useRouter();
-  const placesRef = useRef<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -156,9 +138,8 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState<string>("");
   const [bio, setBio] = useState("");
 
-  // Images (local or remote URL)
+  // Avatar (local or remote URL)
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [cover, setCover] = useState<string | null>(null);
 
   // Niches
   const [selectedNiches, setSelectedNiches] = useState<ValidNiche[]>([]);
@@ -172,31 +153,6 @@ export default function EditProfileScreen() {
     { key: "twitter", label: "Twitter (X)", icon: require("../../assets/images/twitter.png"), value: "" },
     { key: "linkedin", label: "LinkedIn", icon: require("../../assets/images/linkedin.png"), value: "" },
   ]);
-
-  // Account
-  const [email, setEmail] = useState<string>("");
-  const [newEmail, setNewEmail] = useState<string>("");
-  const [confirmNewEmail, setConfirmNewEmail] = useState<string>("");
-
-  const [currentPassword, setCurrentPassword] = useState<string>("");
-  const [newPassword, setNewPassword] = useState<string>("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
-
-  // Password visibility toggles
-  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
-  const [showNewPwd, setShowNewPwd] = useState(false);
-  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
-
-  // Location (country / state / city + coords [lng, lat])
-  const [country, setCountry] = useState<string>("");
-  const [locState, setLocState] = useState<string>("");
-  const [city, setCity] = useState<string>("");
-  const [coords, setCoords] = useState<[number, number] | null>(null);
-
-  // Small action loaders
-  const [updatingEmail, setUpdatingEmail] = useState(false);
-  const [updatingPwd, setUpdatingPwd] = useState(false);
-  
 
   /* ------------------------------ Load profile ------------------------------ */
   useEffect(() => {
@@ -212,7 +168,6 @@ export default function EditProfileScreen() {
         setUsername(p.username || "");
         setBio(p.bio || "");
         setAvatar(p.avatar || null);
-        setCover(p.coverImage || null);
 
         const incomingRaw = Array.isArray(p.niche) ? p.niche : [];
         const valid = incomingRaw
@@ -224,22 +179,6 @@ export default function EditProfileScreen() {
         setSocials(prev =>
           prev.map(it => ({ ...it, value: (s as any)[it.key] ? String((s as any)[it.key]) : "" }))
         );
-
-        setEmail(data?.user?.email || "");
-
-        // load existing location
-        if (p.location) {
-          setCountry(p.location.country || "");
-          setLocState(p.location.state || "");
-          setCity(p.location.city || "");
-          if (Array.isArray(p.location.coordinates)
-              && typeof p.location.coordinates[0] === "number"
-              && typeof p.location.coordinates[1] === "number") {
-            setCoords([p.location.coordinates[0], p.location.coordinates[1]]);
-          }
-          const label = [p.location.city, p.location.state, p.location.country].filter(Boolean).join(", ");
-          if (label) setTimeout(() => placesRef.current?.setAddressText(label), 0);
-        }
       } catch (e: any) {
         Alert.alert("Load error", e?.message || "Could not load your profile.");
       } finally {
@@ -249,41 +188,35 @@ export default function EditProfileScreen() {
   }, []);
 
   /* ------------------------------ Pickers ------------------------------ */
-  const pickImage = async (kind: "avatar" | "cover") => {
+  const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission required", "Allow photo library access to choose an image.");
       return;
     }
-
-    const aspect: [number, number] = kind === "avatar" ? [1, 1] : [3, 1];
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect,
+      aspect: [1, 1],
       quality: 0.9,
     });
-
     if (result.canceled) return;
-
-    const uri = result.assets[0].uri;
-    if (kind === "avatar") setAvatar(uri);
-    else setCover(uri);
+    setAvatar(result.assets[0].uri);
   };
 
-  /** Upload exactly as per API docs: POST /profiles/upload-media with { file, type } */
-  async function uploadIfLocal(uri: string | null, kind: "avatar" | "cover"): Promise<string | null> {
+  /** Upload avatar exactly as per API docs: POST /profiles/upload-media with { file, type } */
+  async function uploadAvatarIfLocal(uri: string | null): Promise<string | null> {
     if (!uri) return null;
     if (/^https?:\/\//i.test(uri)) return uri;
 
-    const processed = await processImage(uri, kind);
+    const processed = await processAvatar(uri);
     const fd = new FormData();
     fd.append("file", {
       uri: processed,
       type: "image/jpeg",
-      name: `${kind}-${Date.now()}.jpg`,
+      name: `avatar-${Date.now()}.jpg`,
     } as any);
-    fd.append("type", kind); // 'avatar' | 'cover'
+    fd.append("type", "avatar");
 
     const res = await apiFetch(`/profiles/upload-media`, {
       method: "POST",
@@ -294,11 +227,8 @@ export default function EditProfileScreen() {
     const data = safeJson(text);
 
     if (!res.ok) {
-      // Surface backend message to help debugging (size, auth, etc.)
       throw new Error(data?.message || text || `Upload failed (${res.status})`);
     }
-
-    // API may respond with a url/location/publicUrl
     const url: string | undefined = data?.url || data?.location || data?.publicUrl;
     return url ?? null;
   }
@@ -312,18 +242,14 @@ export default function EditProfileScreen() {
     return res;
   }
 
-  /* ------------------------------ Save / Update ------------------------------ */
+  /* ------------------------------ Save ------------------------------ */
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const uploadedAvatarUrl = await uploadIfLocal(avatar, "avatar");
-      const uploadedCoverUrl  = await uploadIfLocal(cover,  "cover");
-
+      const uploadedAvatarUrl = await uploadAvatarIfLocal(avatar);
       const avatarUrlToSend =
         uploadedAvatarUrl || (avatar && /^https?:\/\//i.test(avatar) ? avatar : undefined);
-      const coverUrlToSend  =
-        uploadedCoverUrl  || (cover  && /^https?:\/\//i.test(cover)  ? cover  : undefined);
 
       const niche = (Array.isArray(selectedNiches) ? selectedNiches : [])
         .filter((n): n is ValidNiche => (VALID_NICHES as readonly string[]).includes(n))
@@ -334,11 +260,6 @@ export default function EditProfileScreen() {
         return acc;
       }, {} as NonNullable<ProfileModel["socialLinks"]>);
 
-      const finalCoords: [number, number] =
-        (Array.isArray(coords) && typeof coords[0] === "number" && typeof coords[1] === "number")
-          ? coords
-          : [-84.388, 33.749];
-
       const payload: Partial<ProfileModel> = {
         displayName: displayName || undefined,
         username: username || undefined,
@@ -346,13 +267,6 @@ export default function EditProfileScreen() {
         niche,
         socialLinks,
         ...(avatarUrlToSend ? { avatar: avatarUrlToSend } : {}),
-        ...(coverUrlToSend  ? { coverImage: coverUrlToSend } : {}),
-        location: {
-          country: country || "United States",
-          state: locState || "",
-          city: city || "",
-          coordinates: finalCoords,
-        },
       };
 
       const res = await saveProfile(payload);
@@ -369,53 +283,6 @@ export default function EditProfileScreen() {
     }
   };
 
-  const handleUpdateEmail = async () => {
-    if (!newEmail.trim()) return Alert.alert("Email", "Enter a new email.");
-    if (newEmail.trim() !== confirmNewEmail.trim())
-      return Alert.alert("Email", "New email and confirmation do not match.");
-    setUpdatingEmail(true);
-    try {
-      const r = await apiFetch("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({ email: newEmail.trim() } as PutUsersMeBody),
-      }, 30000);
-      const d = safeJson(await r.text());
-      if (!r.ok) throw new Error(d?.message || `Update email failed (${r.status})`);
-      setEmail(newEmail.trim());
-      setNewEmail(""); setConfirmNewEmail("");
-      Alert.alert("Email updated", "Your email was updated. If verification is required, check your inbox.", [
-        { text: "OK", onPress: () => router.replace("/profile/profile") },
-      ]);
-    } catch (e: any) {
-      Alert.alert("Update failed", e?.message || "Could not update email.");
-    } finally {
-      setUpdatingEmail(false);
-    }
-  };
-
-  const handleUpdatePassword = async () => {
-    if (!currentPassword.trim()) return Alert.alert("Password", "Enter your current password.");
-    if (newPassword.length < 8) return Alert.alert("Password", "New password must be at least 8 characters.");
-    if (newPassword !== confirmNewPassword) return Alert.alert("Password", "New password and confirmation do not match.");
-    setUpdatingPwd(true);
-    try {
-      const r = await apiFetch("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({ currentPassword, newPassword } as PutUsersMeBody),
-      }, 30000);
-      const d = safeJson(await r.text());
-      if (!r.ok) throw new Error(d?.message || `Update password failed (${r.status})`);
-      setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword("");
-      Alert.alert("Password updated", "Your password was changed successfully.", [
-        { text: "OK", onPress: () => router.replace("/profile/profile") },
-      ]);
-    } catch (e: any) {
-      Alert.alert("Update failed", e?.message || "Could not update password.");
-    } finally {
-      setUpdatingPwd(false);
-    }
-  };
-
   /* --------------------------------- UI --------------------------------- */
   if (loading) {
     return (
@@ -426,16 +293,12 @@ export default function EditProfileScreen() {
     );
   }
 
-  const hasPlacesKey =
-    typeof process?.env?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY === "string" &&
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY.trim() !== "";
-
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* Top bar */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      {/* Top bar (lowered with padding; Ionicons fixes '?' issue) */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <AntDesign name="arrowleft" size={24} color="#333" />
+          <Ionicons name="chevron-back" size={26} color="#333" />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Edit Profile</Text>
         <View style={{ width: 44 }} />
@@ -443,24 +306,9 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          {/* Cover */}
-          <TouchableOpacity style={styles.bannerWrapper} onPress={() => pickImage("cover")}>
-            {cover ? (
-              <Image source={{ uri: cover }} style={styles.bannerImage} />
-            ) : (
-              <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
-                <AntDesign name="picture" size={28} color="#888" />
-                <Text style={{ color: "#888", marginTop: 6 }}>Add cover</Text>
-              </View>
-            )}
-            <View style={styles.bannerEditBadge}>
-              <AntDesign name="edit" size={16} color="#fff" />
-              <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "600" }}>Change</Text>
-            </View>
-          </TouchableOpacity>
 
           {/* Avatar */}
-          <TouchableOpacity style={styles.avatarContainer} onPress={() => pickImage("avatar")}>
+          <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
             <Image
               source={avatar ? { uri: avatar } : require("../../assets/images/avatar.png")}
               style={styles.avatar}
@@ -498,115 +346,9 @@ export default function EditProfileScreen() {
             numberOfLines={4}
           />
 
-          {/* Location */}
-          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Location</Text>
-
-          {hasPlacesKey ? (
-            <GooglePlacesAutocomplete
-              ref={placesRef}
-              placeholder="Search your city"
-              fetchDetails
-              onPress={(data, details) => {
-                try {
-                  const comps = (details?.address_components || []) as any[];
-                  const find = (type: string) =>
-                    comps.find((c: any) => Array.isArray(c?.types) && c.types.includes(type));
-
-                  const countryComp = find("country");
-                  const stateComp =
-                    find("administrative_area_level_1") ||
-                    find("administrative_area_level_2");
-                  const cityComp =
-                    find("locality") ||
-                    find("sublocality") ||
-                    find("postal_town");
-
-                  const nextCountry = countryComp?.long_name || "";
-                  const nextState = stateComp?.long_name || "";
-                  const nextCity = cityComp?.long_name || "";
-
-                  setCountry(nextCountry);
-                  setLocState(nextState);
-                  setCity(nextCity);
-
-                  const lat = details?.geometry?.location?.lat;
-                  const lng = details?.geometry?.location?.lng;
-                  if (typeof lat === "number" && typeof lng === "number") {
-                    setCoords([lng, lat]);
-                  }
-
-                  const label = [nextCity, nextState, nextCountry].filter(Boolean).join(", ");
-                  placesRef.current?.setAddressText(label);
-                } catch (e) {
-                  console.warn("Places parse error", e);
-                }
-              }}
-              query={{
-                key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-                language: "en",
-                types: "(cities)",
-              }}
-              renderRow={(row) => {
-                const main = row?.structured_formatting?.main_text ?? row?.description ?? "";
-                const secondary = row?.structured_formatting?.secondary_text ?? "";
-                return (
-                  <View style={{ paddingVertical: 10, paddingHorizontal: 12 }}>
-                    <Text style={{ fontSize: 15, color: "#111", fontWeight: "600" }}>{main}</Text>
-                    {!!secondary && <Text style={{ fontSize: 13, color: "#666" }}>{secondary}</Text>}
-                  </View>
-                );
-              }}
-              enablePoweredByContainer={false}
-              styles={{
-                container: { width: "100%", marginBottom: 10 },
-                textInput: {
-                  height: 44, borderColor: "#ccc", borderWidth: 1, borderRadius: 10,
-                  paddingHorizontal: 10, color: "#000", backgroundColor: "#fff",
-                },
-                listView: {
-                  backgroundColor: "#fff",
-                  borderColor: "#eee",
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  marginTop: 6,
-                  elevation: 4,
-                  zIndex: 50,
-                },
-              }}
-              onFail={(err) => console.warn("Places error", err)}
-            />
-          ) : (
-            <>
-              <TextInput
-                style={styles.input}
-                placeholderTextColor="#666"
-                placeholder="Country"
-                value={country}
-                onChangeText={setCountry}
-                autoCapitalize="words"
-              />
-              <TextInput
-                style={styles.input}
-                placeholderTextColor="#666"
-                placeholder="State / Region"
-                value={locState}
-                onChangeText={setLocState}
-                autoCapitalize="words"
-              />
-              <TextInput
-                style={styles.input}
-                placeholderTextColor="#666"
-                placeholder="City"
-                value={city}
-                onChangeText={setCity}
-                autoCapitalize="words"
-              />
-            </>
-          )}
-
           {/* Niches */}
           <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Niches</Text>
-          <Text style={styles.subtext}>Pick up to 5 (required by backend)</Text>
+          <Text style={styles.subtext}>Pick up to 5</Text>
           <View style={styles.nicheWrap}>
             {VALID_NICHES.map((n) => {
               const selected = selectedNiches.includes(n);
@@ -670,164 +412,21 @@ export default function EditProfileScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Account */}
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Account</Text>
-
-          {/* Change Email */}
-          <View style={styles.cardBlock}>
-            <Text style={styles.blockTitle}>Change Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholderTextColor="#666"
-              placeholder="Current email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              editable={false}
-            />
-            <TextInput
-              style={styles.input}
-              placeholderTextColor="#666"
-              placeholder="New email"
-              value={newEmail}
-              onChangeText={setNewEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoCorrect={false}
-            />
-            <TextInput
-              style={styles.input}
-              placeholderTextColor="#666"
-              placeholder="Confirm new email"
-              value={confirmNewEmail}
-              onChangeText={setConfirmNewEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoCorrect={false}
-            />
-
-            <TouchableOpacity
-              style={[styles.smallButton, updatingEmail && { opacity: 0.7 }]}
-              disabled={updatingEmail}
-              onPress={handleUpdateEmail}
-            >
-              <LinearGradient
-                colors={["#3B82F6", "#9333EA"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.smallGradient}
-              >
-                <Text style={styles.smallButtonText} numberOfLines={1}>Update Email</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
-          {/* Change Password */}
-          <View style={styles.cardBlock}>
-            <Text style={styles.blockTitle}>Change Password</Text>
-
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholderTextColor="#666"
-                placeholder="Current password"
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="password"
-                autoComplete="password"
-                secureTextEntry={!showCurrentPwd}
-                enablesReturnKeyAutomatically
-              />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowCurrentPwd(v => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={showCurrentPwd ? "Hide current password" : "Show current password"}
-              >
-                <Feather name={showCurrentPwd ? "eye-off" : "eye"} size={18} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholderTextColor="#666"
-                placeholder="New password (min 8 chars)"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="newPassword"
-                autoComplete="password-new"
-                secureTextEntry={!showNewPwd}
-                enablesReturnKeyAutomatically
-              />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowNewPwd(v => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={showNewPwd ? "Hide new password" : "Show new password"}
-              >
-                <Feather name={showNewPwd ? "eye-off" : "eye"} size={18} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholderTextColor="#666"
-                placeholder="Confirm new password"
-                value={confirmNewPassword}
-                onChangeText={setConfirmNewPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="password"
-                autoComplete="password"
-                secureTextEntry={!showConfirmPwd}
-                enablesReturnKeyAutomatically
-              />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowConfirmPwd(v => !v)}
-                accessibilityRole="button"
-                accessibilityLabel={showConfirmPwd ? "Hide confirm password" : "Show confirm password"}
-              >
-                <Feather name={showConfirmPwd ? "eye-off" : "eye"} size={18} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.smallButton, updatingPwd && { opacity: 0.7 }]}
-              disabled={updatingPwd}
-              onPress={handleUpdatePassword}
-            >
-              <LinearGradient
-                colors={["#3B82F6", "#9333EA"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.smallGradient}
-              >
-                <Text style={styles.smallButtonText} numberOfLines={1}>Update Password</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
           <View style={{ height: 24 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 /* --------------------------------- Styles -------------------------------- */
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, paddingTop: 24, alignItems: "center", backgroundColor: "#fff" },
+  container: { flexGrow: 1, padding: 20, paddingTop: 16, alignItems: "center", backgroundColor: "#fff" },
 
+  // Lowered header via extra padding; Ionicons avoids '?' glyphs.
   topBar: {
     height: 56,
+    paddingTop: 6,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     flexDirection: "row",
@@ -839,29 +438,7 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
   backButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 
-  bannerWrapper: {
-    width: "100%",
-    height: 150,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#f3f3f3",
-    marginBottom: 14,
-  },
-  bannerImage: { width: "100%", height: "100%", resizeMode: "cover" },
-  bannerPlaceholder: { alignItems: "center", justifyContent: "center" },
-  bannerEditBadge: {
-    position: "absolute",
-    right: 10,
-    bottom: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  avatarContainer: { position: "relative", marginTop: -40, marginBottom: 18, alignSelf: "center" },
+  avatarContainer: { position: "relative", marginTop: 16, marginBottom: 18, alignSelf: "center" },
   avatar: {
     width: 120,
     height: 120,
@@ -884,23 +461,6 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#fff",
     marginBottom: 10,
-  },
-  inputRow: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    paddingRight: 6,
-    marginBottom: 10,
-  },
-  eyeBtn: {
-    paddingHorizontal: 8,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
   },
   textArea: {
     width: "100%",
@@ -950,21 +510,7 @@ const styles = StyleSheet.create({
   socialIcon: { width: 22, height: 22, resizeMode: "contain" },
   socialLabel: { fontSize: 15, color: "#000" },
 
-  cardBlock: {
-    width: "100%",
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e6e6e6",
-    borderRadius: 12,
-    backgroundColor: "#fff",
-  },
-  blockTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 8 },
-
   button: { borderRadius: 10, overflow: "hidden", marginTop: 16, alignSelf: "center" },
   gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: "center", borderRadius: 10 },
   buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
-
-  smallButton: { borderRadius: 10, overflow: "hidden", marginTop: 12, alignSelf: "center" },
-  smallGradient: { paddingVertical: 10, paddingHorizontal: 24, alignItems: "center", borderRadius: 10 },
-  smallButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

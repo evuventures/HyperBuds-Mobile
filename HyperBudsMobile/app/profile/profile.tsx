@@ -115,9 +115,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 1, baseDelayMs = 900
   }
 }
 
-/** Attach Authorization header, auto-refresh on 401 once, then retry.
- *  Uses a real Headers object to avoid TS issues and handle FormData correctly.
- */
+/** Attach Authorization header, auto-refresh on 401 once, then retry. */
 async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
   const accessToken = await AsyncStorage.getItem('auth.accessToken');
 
@@ -202,7 +200,7 @@ export default function ProfileScreen() {
   const [displayName, setDisplayName] = useState<string>('');
   const [handle, setHandle] = useState<string>('');
   const [avatarUri, setAvatarUri] = useState<string | undefined>(undefined);
-  const [bannerUri, setBannerUri] = useState<string | undefined>(undefined);
+  const [bannerUri, setBannerUri] = useState<string | undefined>(undefined); // kept for future use
   const [bio, setBio] = useState<string>('');
   const [niches, setNiches] = useState<string[]>([]);
   const [socialLinks, setSocialLinks] = useState<ProfileModel['socialLinks']>({});
@@ -329,17 +327,14 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Banner */}
-        <View style={styles.bannerContainer}>
-          {bannerUri ? (
-            <Image source={{ uri: bannerUri }} style={styles.bannerImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.bannerPlaceholder} />
-          )}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/main/explore")}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.replace('/main/explore')}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
 
         {/* Avatar */}
         <TouchableOpacity style={styles.avatar} activeOpacity={0.85} onPress={handleChangeAvatar}>
@@ -358,7 +353,7 @@ export default function ProfileScreen() {
         {/* Name & Handle */}
         <Text style={styles.username}>{loadingProfile ? 'Loading…' : displayName || 'User'}</Text>
         <Text style={styles.role}>{handle || ''}</Text>
-          
+
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
@@ -374,8 +369,8 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Niches</Text>
           </View>
         </View>
-            
-        {/* Buttons (Build Profile removed) */}
+
+        {/* Buttons */}
         <View style={styles.buttonsRow}>
           <TouchableOpacity style={styles.editButton} onPress={() => router.push('/profile/editprofile')}>
             <LinearGradient colors={['#3B82F6', '#9333EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.editGradient}>
@@ -410,7 +405,7 @@ export default function ProfileScreen() {
           <Text style={{ fontSize: 12, color: '#666', marginBottom: 20 }}>No socials linked</Text>
         )}
 
-        {/* Payments entry (typed-safe with <Link />) */}
+        {/* Payments entry */}
         <Link href={PAYMENTS_HREF} asChild>
           <TouchableOpacity style={{ marginTop: 12 }}>
             <LinearGradient
@@ -441,33 +436,7 @@ export default function ProfileScreen() {
           )}
         </ScrollView>
 
-        {/* Example card (placeholder) */}
-        <Text style={styles.sectionTitle}>Collaboration</Text>
-        <View style={styles.card}>
-          <View style={styles.cardImagePlaceholder} />
-          <Text style={styles.cardTitle}>Andy & Sam Podcast: Time to Learn the Art of Makeup</Text>
-          <Text style={styles.cardSubtitle}>Lorem ipsum dolor sit amet, consectetur adipiscing elit...</Text>
-          <View style={styles.postFooter}>
-            <View style={styles.authorRow}>
-              <View style={styles.avatarSmall} />
-              <View style={styles.avatarSmall} />
-              <View style={styles.authorTextWrapper}>
-                <Text style={styles.postAuthor}>Tom & Mon</Text>
-                <Text style={styles.postSubauthor}>Podcast | Podcast</Text>
-              </View>
-            </View>
-            <View style={styles.statsRowSmall}>
-              <View style={styles.viewersPill}>
-                <Text style={styles.viewersCountSmall}>12K</Text>
-                <Text style={styles.viewersLabelSmall}>Viewers</Text>
-              </View>
-              <Ionicons name="flame" size={16} color="red" />
-              <Text style={styles.statTextSmall}>5K</Text>
-              <Ionicons name="share-social" size={16} color="green" />
-              <Text style={styles.statTextSmall}>400</Text>
-            </View>
-          </View>
-        </View>
+        {/* Collaboration section removed as requested */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -487,25 +456,20 @@ function formatK(n: number) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 20, paddingBottom: 40 },
 
-  bannerContainer: {
-    width: width - 40,
-    height: 180,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: -70,
-    alignSelf: 'center',
-    backgroundColor: '#ddd',
-  },
-  bannerImage: { width: '100%', height: '100%' },
-  bannerPlaceholder: { flex: 1, backgroundColor: '#ddd' },
-  backButton: { position: 'absolute', top: 10, left: 10 },
+  // Added extra top padding so the back button never overlaps content
+  container: { padding: 20, paddingTop: 28, paddingBottom: 40 },
 
+  backButton: { position: 'absolute', top: 10, left: 10, zIndex: 10 },
+
+  // ↓ Lowered avatar by removing the negative margin and adding a positive top margin
   avatar: {
     width: 120, height: 120, borderRadius: 60,
     borderWidth: 4, borderColor: '#fff', backgroundColor: '#ddd',
-    alignSelf: 'center', marginTop: -60, marginBottom: 10, overflow: 'hidden',
+    alignSelf: 'center',
+    marginTop: 16,          // was: -60 (this caused clipping at the top)
+    marginBottom: 10,
+    overflow: 'hidden',
   },
   avatarImage: { width: '100%', height: '100%' },
   avatarOverlay: {
@@ -521,7 +485,7 @@ const styles = StyleSheet.create({
   statCount: { fontSize: 16, fontWeight: '600' },
   statLabel: { fontSize: 12, color: '#666' },
 
-  /* Buttons: Build Profile removed */
+  /* Buttons */
   buttonsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 30 },
   editButton: { flex: 1, marginRight: 8, borderRadius: 10, overflow: 'hidden' },
   editGradient: { paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
@@ -536,27 +500,10 @@ const styles = StyleSheet.create({
   socialIconImg: { width: 36, height: 36, resizeMode: 'contain', marginBottom: 6 },
   socialHandle: { fontSize: 11, color: '#444', textAlign: 'center' },
 
-  card: { backgroundColor: '#fff', borderRadius: 10, overflow: 'hidden', marginBottom: 30, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5, elevation: 3 },
-  cardImagePlaceholder: { width: '100%', height: 180, backgroundColor: '#ddd' },
-  cardTitle: { fontSize: 16, fontWeight: '600', margin: 10 },
-  cardSubtitle: { fontSize: 12, color: '#666', marginHorizontal: 10, marginBottom: 10 },
-  postFooter: { paddingHorizontal: 10, paddingBottom: 10 },
-  authorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  avatarSmall: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#ddd', marginRight: -10, borderWidth: 2, borderColor: '#9333EA' },
-  authorTextWrapper: { marginLeft: 10 },
-  postAuthor: { fontSize: 14, fontWeight: '600' },
-  postSubauthor: { fontSize: 12, color: '#666' },
-
-  statsRowSmall: { flexDirection: 'row', alignItems: 'center' },
-  viewersPill: { flexDirection: 'row', backgroundColor: '#000', borderRadius: 20, padding: 6, marginRight: 10 },
-  viewersCountSmall: { color: '#fff', fontSize: 12, fontWeight: '600', marginRight: 4 },
-  viewersLabelSmall: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  statTextSmall: { fontSize: 12, marginHorizontal: 4 },
-
   tagRow: { paddingVertical: 10 },
   tag: { backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 6, marginRight: 10 },
   tagText: { fontSize: 12, color: '#333' },
-  
+
   paymentBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -568,10 +515,12 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
+    
   },
   paymentBtnText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '700',
+    
   },
 });

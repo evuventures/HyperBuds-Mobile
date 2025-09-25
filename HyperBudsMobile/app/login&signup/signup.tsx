@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const screenOptions = { headerShown: false };
@@ -102,8 +102,7 @@ async function getPendingSignup(email: string): Promise<{ idKey: string; ts: num
 export default function SignupScreen() {
   const router = useRouter();
 
-  const [username, setUsername] = useState(''); // local-only (not sent to API yet)
-  const [phone, setPhone] = useState('');       // local-only
+  // Removed username & phone
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -114,7 +113,6 @@ export default function SignupScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const validate = () => {
-    if (!username.trim()) return 'Username is required';
     if (!email.includes('@')) return 'Enter a valid email';
     if (password.length < 8) return 'Password must be at least 8 characters';
     if (password !== confirm) return 'Passwords do not match';
@@ -154,7 +152,7 @@ export default function SignupScreen() {
     const v = validate();
     if (v) { setError(v); return; }
 
-    if (loading) return; // extra guard against double taps
+    if (loading) return;
 
     setLoading(true);
     setError(null);
@@ -163,10 +161,9 @@ export default function SignupScreen() {
     const idemKey = genIdempotencyKey();
 
     try {
-      // Mark this signup as "pending" in case we time out
       await setPendingSignup(trimmedEmail, idemKey);
 
-      // 1) Register (NO RETRY here—avoid duplicate account creation)
+      // 1) Register (NO RETRY)
       const regRes = await fetchWithTimeout(
         `${API_BASE}/auth/register`,
         {
@@ -174,24 +171,25 @@ export default function SignupScreen() {
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
-            // Generic idempotency signal (server may ignore; future-proof if added)
             'Idempotency-Key': idemKey,
             'X-Client-Timestamp': String(Date.now()),
           },
           body: JSON.stringify({ email: trimmedEmail, password }),
         },
-        60000 // allow cold-start
+        60000
       );
 
       const regText = await regRes.text();
       const regData = safeJson(regText);
 
       if (!regRes.ok) {
-        // If the server says 409, treat as "likely created already" (race/timeout)
         if (regRes.status === 409) {
           try {
             await sendVerificationEmail(trimmedEmail);
-            goToVerify(trimmedEmail, 'We found an existing signup for this email. Check your inbox for the verification link.');
+            goToVerify(
+              trimmedEmail,
+              'We found an existing signup for this email. Check your inbox for the verification link.'
+            );
           } catch (e: any) {
             setError('Email already in use. If you just signed up, check your inbox for a verification link—or try logging in.');
           }
@@ -202,11 +200,10 @@ export default function SignupScreen() {
         return;
       }
 
-      // 2) Send verification email
+      // 2) Send verification email (best-effort)
       try {
         await sendVerificationEmail(trimmedEmail);
       } catch (e: any) {
-        // Non-fatal: proceed to verify screen where user can retry
         setError(e?.message || 'Could not send verification email right now. You can retry on the next screen.');
       }
 
@@ -214,10 +211,6 @@ export default function SignupScreen() {
       goToVerify(trimmedEmail);
     } catch (err: any) {
       const msg = String(err?.message || err);
-
-      // If we timed out or hit a network error, we may have a "ghost success".
-      // If we recently marked this email as pending, optimistically proceed
-      // by sending the verification email and navigating.
       if (
         msg === 'Request timeout' ||
         msg.includes('Network request failed') ||
@@ -227,21 +220,17 @@ export default function SignupScreen() {
         try {
           const pending = await getPendingSignup(trimmedEmail);
           if (pending && Date.now() - pending.ts < 2 * 60 * 1000) {
-            // Optimistic proceed
             await sendVerificationEmail(trimmedEmail);
             goToVerify(trimmedEmail, 'Your signup may have completed. Check your email for the verification link.');
             return;
           }
-        } catch {
-          // fall through to error
-        }
+        } catch {}
         setError('Request timed out. The server may be cold-starting — please try again.');
       } else {
         setError(msg);
       }
     } finally {
       setLoading(false);
-      // Clear the pending marker regardless—fresh attempts will set a new one
       await clearPendingSignup(trimmedEmail);
     }
   };
@@ -258,32 +247,6 @@ export default function SignupScreen() {
             <Text style={styles.title}>Sign Up</Text>
 
             <View style={styles.formWrapper}>
-              {/* Username (local) */}
-              <View style={styles.inputField}>
-                <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
-                <TextInput
-                  placeholder="Username"
-                  placeholderTextColor="#aaa"
-                  autoCapitalize="none"
-                  style={styles.input}
-                  value={username}
-                  onChangeText={setUsername}
-                />
-              </View>
-
-              {/* Phone (local) */}
-              <View style={styles.inputField}>
-                <Feather name="phone" size={20} color="#aaa" style={styles.inputIcon} />
-                <TextInput
-                  placeholder="Phone Number"
-                  placeholderTextColor="#aaa"
-                  keyboardType="numeric"
-                  style={styles.input}
-                  value={phone}
-                  onChangeText={(val) => setPhone(val.replace(/[^0-9]/g, ''))}
-                />
-              </View>
-
               {/* Email */}
               <View style={styles.inputField}>
                 <Feather name="mail" size={20} color="#aaa" style={styles.inputIcon} />
@@ -351,20 +314,6 @@ export default function SignupScreen() {
                   Log In
                 </Text>
               </Text>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.divider} />
-                <Text style={styles.continueWith}>Continue with</Text>
-                <View className="divider" />
-                <View style={styles.divider} />
-              </View>
-
-              <View style={styles.socialRow}>
-                <AntDesign name="apple1" size={26} color="black" />
-                <AntDesign name="instagram" size={26} color="#E1306C" />
-                <AntDesign name="google" size={26} color="#DB4437" />
-                <FontAwesome5 name="tiktok" size={24} color="black" />
-              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -385,7 +334,7 @@ const styles = StyleSheet.create({
     color: '#9333EA',
     textAlign: 'center',
     marginTop: 60,
-    marginBottom: 16,
+    marginBottom: 60,
   },
 
   formWrapper: { marginTop: 6 },
@@ -414,12 +363,6 @@ const styles = StyleSheet.create({
 
   loginPrompt: { textAlign: 'center', fontSize: 14, marginBottom: 15 },
   loginLink: { color: '#6A0DAD', fontWeight: '600' },
-
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingHorizontal: 30 },
-  divider: { flex: 1, height: 1, backgroundColor: '#ddd' },
-  continueWith: { marginHorizontal: 10, color: '#888', fontSize: 12 },
-
-  socialRow: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 30 },
 
   error: { color: 'crimson', textAlign: 'center', marginBottom: 12 },
 });
