@@ -11,6 +11,7 @@ import {
   View,
   Platform,
   ActivityIndicator,
+  SafeAreaView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Swiper from "react-native-swiper";
@@ -367,286 +368,436 @@ export default function BuildProfileScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Top bar + arrows + dots */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={goBackSlide}
-          style={[styles.navArrow, currentIndex === 0 && styles.navArrowDim]}
-        >
-          <Ionicons name="chevron-back" size={22} color="#333" />
-        </TouchableOpacity>
-
-        <View style={styles.dots}>
-          {[0, 1, 2, 3].map((_, i) => (
-            <View key={i} style={[styles.dot, i === currentIndex && styles.activeDot]} />
-          ))}
-        </View>
-
-        <TouchableOpacity
-          onPress={goNextSlide}
-          disabled={currentIndex === LAST_INDEX}
-          style={[styles.navArrow, currentIndex === LAST_INDEX && styles.navArrowDim]}
-        >
-          <Ionicons name="chevron-forward" size={22} color="#333" />
-        </TouchableOpacity>
-      </View>
-
-      <Swiper
-        ref={swiperRef}
-        loop={false}
-        showsPagination={false}
-        scrollEnabled={false}
-        onIndexChanged={(index) => setCurrentIndex(index)}
-      >
-        {/* SLIDE 1 - Avatar + Username + Display Name + Bio */}
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
-            <Image
-              source={avatar ? { uri: avatar } : require("../../assets/images/avatar.png")}
-              style={styles.avatar}
-            />
-            <Image source={require("../../assets/images/edit.png")} style={styles.editIcon} />
+    <View style={{ flex: 1, backgroundColor: "#F8FAFB" }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* Top stepper */}
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={goBackSlide} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={22} color="#333" />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Build Your Profile</Text>
+          <View style={styles.stepper}>
+            <View style={styles.stepItem}>
+              {currentIndex >= 0 ? (
+                <LinearGradient colors={["#7C3AED", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.stepCircleGradient}>
+                  <Ionicons name="person" size={16} color="#fff" />
+                </LinearGradient>
+              ) : (
+                <View style={styles.stepCircle}>
+                  <Ionicons name="person" size={16} color="#9CA3AF" />
+                </View>
+              )}
+              <Text style={[styles.stepLabel, currentIndex >= 0 && styles.stepLabelActive]}>Basic Info</Text>
+            </View>
 
-          {/* Username */}
-          <Text style={styles.label}>Username</Text>
-          <TextInput
-            value={username}
-            onChangeText={(v) => setUsername(normalizeUsername(v))}
-            placeholder="yourname"
-            placeholderTextColor="#888"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!usernameLocked}
-            style={[styles.input, usernameLocked && styles.inputDisabled]}
-          />
-          <Text style={styles.helperText}>
-            {usernameLocked
-              ? "Your username is set and cannot be changed."
-              : "Username cannot be changed later. "}
-          </Text>
+            <View style={styles.stepLine} />
 
-          {/* Display name */}
-          <Text style={styles.label}>Display Name</Text>
-          <TextInput
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Display name"
-            placeholderTextColor="#888"
-            autoCapitalize="words"
-            style={styles.input}
-          />
+            <View style={styles.stepItem}>
+              {currentIndex >= 1 ? (
+                <LinearGradient colors={["#7C3AED", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.stepCircleGradient}>
+                  <Ionicons name="pencil" size={16} color="#fff" />
+                </LinearGradient>
+              ) : (
+                <View style={styles.stepCircle}>
+                  <Ionicons name="pencil" size={16} color="#9CA3AF" />
+                </View>
+              )}
+              <Text style={[styles.stepLabel, currentIndex >= 1 && styles.stepLabelActive]}>About You</Text>
+            </View>
 
-          {/* Bio */}
-          <Text style={styles.label}>Short Bio</Text>
-          <TextInput
-            value={bio}
-            onChangeText={setBio}
-            multiline
-            numberOfLines={4}
-            placeholder="Write a short bio..."
-            placeholderTextColor="#888"
-            style={styles.textArea}
-          />
+            <View style={styles.stepLine} />
 
-          <TouchableOpacity
-            style={[styles.button, savingStepOne && { opacity: 0.7 }]}
-            onPress={handleFirstContinue}
-            disabled={savingStepOne}
-          >
-            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
-              <Text style={styles.buttonText}>{savingStepOne ? "Saving…" : "Continue"}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* SLIDE 2 - Niches */}
-        <ScrollView contentContainerStyle={[styles.container, { alignItems: "stretch" }]} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Choose Your Niche</Text>
-          <Text style={styles.subtext}>Pick up to 5 that best describe you</Text>
-
-          <View style={styles.nicheWrap}>
-            {VALID_NICHES.map((n) => {
-              const selected = selectedNiches.includes(n);
-              return (
-                <TouchableOpacity
-                  key={n}
-                  style={[styles.nicheChip, selected && styles.nicheChipSelected]}
-                  onPress={() => toggleNiche(n)}
-                >
-                  <Text style={[styles.nicheText, selected && styles.nicheTextSelected]}>
-                    {n.charAt(0).toUpperCase() + n.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            <View style={styles.stepItem}>
+              {currentIndex >= 2 ? (
+                <LinearGradient colors={["#7C3AED", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.stepCircleGradient}>
+                  <Ionicons name="link" size={16} color="#fff" />
+                </LinearGradient>
+              ) : (
+                <View style={styles.stepCircle}>
+                  <Ionicons name="link" size={16} color="#9CA3AF" />
+                </View>
+              )}
+              <Text style={[styles.stepLabel, currentIndex >= 2 && styles.stepLabelActive]}>Social Links</Text>
+            </View>
           </View>
 
-          <Text style={[styles.subtext, { marginTop: 6 }]}>
-            Selected: {selectedNiches.length}/5
-          </Text>
+          <View style={{ width: 44 }} />
+        </View>
 
-          <TouchableOpacity style={styles.button} onPress={() => swiperRef.current?.scrollBy(1, true)}>
-            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
-              <Text style={styles.buttonText}>Continue</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </ScrollView>
+        <Swiper
+          ref={swiperRef}
+          loop={false}
+          showsPagination={false}
+          scrollEnabled={false}
+          onIndexChanged={(index) => setCurrentIndex(index)}
+        >
+          {/* SLIDE 1 */}
+          <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 140 }]} showsVerticalScrollIndicator={false}>
+            <Text style={styles.sectionTitle}>Add Your Profile Picture</Text>
+            <Text style={styles.sectionSub}>This will be your public photo (Max 5MB)</Text>
 
-        {/* SLIDE 3 - Socials */}
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Connect your{"\n"}Socials</Text>
-          <View style={{ width: "100%", gap: 12, marginTop: 20 }}>
-            {socials.map((item, idx) => (
-              <View key={item.key} style={styles.socialRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Image source={item.icon} style={styles.socialIcon} />
-                  <Text style={styles.socialLabel}>{item.label}</Text>
-                </View>
-                <TextInput
-                  style={{ flex: 1, marginLeft: 10 }}
-                  placeholder={`Your ${item.label} URL or handle`}
-                  value={item.value}
-                  onChangeText={(text) => {
-                    const copy = [...socials];
-                    copy[idx].value = text;
-                    setSocials(copy);
-                  }}
-                  autoCapitalize="none"
+            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.9}>
+              <View style={styles.avatarShadow}>
+                <Image
+                  source={avatar ? { uri: avatar } : require("../../assets/images/avatar.png")}
+                  style={styles.avatar}
                 />
               </View>
-            ))}
-          </View>
-          <TouchableOpacity style={styles.button} onPress={() => swiperRef.current?.scrollBy(1, true)}>
-            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
-              <Text style={styles.buttonText}>Continue</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </ScrollView>
+            </TouchableOpacity>
 
-        {/* SLIDE 4 - Done */}
-        <View style={styles.container}>
-          <Text style={styles.title}>Registration{"\n"}complete</Text>
-          <Image source={require("../../assets/images/check.png")} style={styles.checkIcon} />
-          <Text style={styles.completeText}>Thank you for{"\n"}registering!</Text>
+            <TouchableOpacity style={styles.photoBtn} onPress={pickImage} activeOpacity={0.9}>
+              <LinearGradient colors={["#A855F7", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.photoGradient}>
+                <Ionicons name="camera" size={18} color="#fff" />
+                <Text style={styles.photoBtnText}>Choose Photo</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, submitting && { opacity: 0.7 }]}
-            onPress={submitting ? undefined : handleSubmit}
-            disabled={submitting}
+            <Text style={styles.bigHeading}>BASIC INFORMATION</Text>
+            <Text style={styles.helpSmall}>Choose your username and display name</Text>
+
+            <View style={{ width: "100%", marginTop: 8 }}>
+            <Text style={styles.label}>Username</Text>
+              <TextInput
+                value={username}
+                onChangeText={(v) => setUsername(normalizeUsername(v))}
+                placeholder="Coolcreator123"
+                placeholderTextColor="#9BA4B1"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={true} 
+                style={[styles.input]}
+              />
+              <Text style={styles.helperText}>
+                {usernameLocked
+                  ? "Your username is set and cannot be changed."
+                  : "Username cannot be changed later."}
+              </Text>
+
+              <Text style={styles.label}>Display Name</Text>
+              <TextInput
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="Cool Creator"
+                placeholderTextColor="#9BA4B1"
+                autoCapitalize="words"
+                style={styles.input}
+              />
+            </View>
+
+            {/* Bottom-right continue for slide 1 */}
+            <TouchableOpacity
+              style={[styles.bottomCta, savingStepOne && { opacity: 0.7 }]}
+              onPress={handleFirstContinue}
+              disabled={savingStepOne}
+            >
+              <LinearGradient colors={["#A855F7", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaInnerSmall}>
+                <Text style={styles.ctaTextSmall}>{savingStepOne ? "Saving…" : "Continue"}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* SLIDE 2 */}
+          <ScrollView
+            contentContainerStyle={[styles.container, { alignItems: "stretch", paddingBottom: 100 }]}  // ** CHANGED **
+            showsVerticalScrollIndicator={false}
           >
-            <LinearGradient colors={["#3B82F6", "#9333EA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradient}>
-              <Text style={styles.buttonText}>{submitting ? "Submitting…" : "Start"}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </Swiper>
+            <Text style={styles.sectionTitle}>Tell Us About You</Text>
+            <Text style={styles.sectionSub}>Share your story and interests</Text>
+
+            <Text style={[styles.label, { marginTop: 8 }]}>Bio</Text>
+            <View style={styles.bioBox}>
+              <TextInput
+                value={bio}
+                onChangeText={(t) => setBio(t.slice(0, 500))}
+                multiline
+                numberOfLines={6}
+                placeholder="Tell us about yourself and your content"
+                placeholderTextColor="#9BA4B1"
+                style={styles.textArea}
+              />
+            </View>
+            <Text style={styles.charCount}>{bio.length}/500 characters</Text>
+
+            <Text style={[styles.label, { marginTop: 10 }]}>Select your niches (max 5)</Text>
+            <View style={styles.nicheWrap}>
+              {VALID_NICHES.map((n) => {
+                const selected = selectedNiches.includes(n);
+                return (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.nicheChip, selected && styles.nicheChipSelected]}
+                    onPress={() => toggleNiche(n)}
+                  >
+                    <Text style={[styles.nicheText, selected && styles.nicheTextSelected]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helperSmall}>{selectedNiches.length}/5 niches selected</Text>
+
+            {/* Bottom-right continue for slide 2 */}
+            <TouchableOpacity style={styles.bottomCta} onPress={() => swiperRef.current?.scrollBy(1, true)}>
+              <LinearGradient colors={["#A855F7", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaInnerSmall}>
+                <Text style={styles.ctaTextSmall}>Continue</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* SLIDE 3 */}
+          <ScrollView contentContainerStyle={[styles.container, { alignItems: "stretch", paddingBottom: 140 }]} showsVerticalScrollIndicator={false}>
+            <Text style={styles.sectionTitle}>Connect Your Socials</Text>
+            <Text style={styles.sectionSub}>Link your profiles to showcase your work</Text>
+
+            <View style={{ marginTop: 16, width: "100%" }}>
+              {socials.map((item, idx) => (
+                <View key={item.key} style={styles.socialRow}>
+                  <View style={styles.socialLeft}>
+                    <Image source={item.icon} style={styles.socialIcon} />
+                    <Text style={styles.socialLabel}>{item.label}</Text>
+                  </View>
+                  <TextInput
+                    style={styles.socialInput}
+                    placeholder={`https:// ${item.label.toLowerCase()}.com/@username`}
+                    placeholderTextColor="#9BA4B1"
+                    value={item.value}
+                    onChangeText={(text) => {
+                      const copy = [...socials];
+                      copy[idx].value = text;
+                      setSocials(copy);
+                    }}
+                    autoCapitalize="none"
+                  />
+                </View>
+              ))}
+            </View>
+
+            {/* Bottom-right finish */}
+            <TouchableOpacity
+              style={[styles.bottomCta, submitting && { opacity: 0.7 }]}
+              onPress={submitting ? undefined : handleSubmit}
+              disabled={submitting}
+            >
+              <LinearGradient colors={["#A855F7", "#3B82F6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaInnerSmall}>
+                <Text style={styles.ctaTextSmall}>{submitting ? "Submitting…" : "Continue"}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </Swiper>
+      </SafeAreaView>
     </View>
   );
 }
 
 /* --------------------------------- Styles -------------------------------- */
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: "#fff", padding: 20, paddingTop: 35, alignItems: "center" },
+  // base
+  container: { flexGrow: 1, backgroundColor: "#F8FAFB", padding: 20, paddingTop: 10, alignItems: "center" },
 
-  /* Top bar */
+  /* Top stepper */
   topBar: {
-    backgroundColor: "#fff",
-    height: 50,
-    paddingTop: 25,
+    height: 88,
     paddingHorizontal: 12,
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    zIndex: 999,
-    position: "relative",
-    flexDirection: "row",
     justifyContent: "space-between",
+    flexDirection: "row",
+    backgroundColor: "transparent",
+    marginTop: -15,
   },
-  navArrow: {
+  backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: -15,
   },
-  navArrowDim: { opacity: 0.4 },
-  dots: { flexDirection: "row", gap: 8 },
+  stepper: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  stepItem: { alignItems: "center", width: 86 },
+  stepCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0,
+  },
+  stepCircleGradient: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  stepLabel: { marginTop: 6, fontSize: 12, color: "#9CA3AF" },
+  stepLabelActive: { color: "#8B5CF6", fontWeight: "700" },
+  stepLine: { width: 18, height: 2, backgroundColor: "#E6E9F2", marginHorizontal: -6 },
 
-  /* First slide */
-  avatarContainer: { position: "relative", marginBottom: 20 },
-  avatar: { width: 120, height: 120, resizeMode: "cover", borderRadius: 60, backgroundColor: "#f3f3f3" },
-  editIcon: { position: "absolute", bottom: 13, right: 11, width: 24, height: 24, resizeMode: "contain" },
-  title: { fontSize: 24, fontWeight: "bold", color: "#9333EA", marginBottom: 16, textAlign: "center" },
-  label: { alignSelf: "flex-start", fontSize: 14, marginBottom: 6, color: "#333", marginTop: 8 },
+  /* Avatar area */
+  sectionTitle: { fontSize: 22, fontWeight: "700", color: "#6D28D9", marginTop: -10, textAlign: "center" },
+  sectionSub: { fontSize: 12, color: "#9CA3AF", marginTop: 6, textAlign: "center" },
 
+  avatarContainer: { marginTop: 18, marginBottom: 8 },
+  avatarShadow: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 18,
+    elevation: 8,
+    overflow: "hidden",
+  },
+  avatar: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    resizeMode: "cover",
+    backgroundColor: "#F3F4F6",
+  },
+
+  // Slimmer choose-photo button
+  photoBtn: { marginTop: 12, marginBottom: 8 },
+  photoGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  photoBtnText: { color: "#fff", marginLeft: 8, fontWeight: "600" },
+
+  bigHeading: { fontSize: 16, color: "#6D28D9", fontWeight: "700", marginTop: 14, marginBottom: 6, textAlign: "center" },
+  helpSmall: { fontSize: 12, color: "#6B7280", marginBottom: 12 },
+
+  label: { alignSelf: "flex-start", fontSize: 13, marginBottom: 6, color: "#374151", marginTop: 6 },
   input: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    padding: 10,
+    borderColor: "#E6E6EA",
+    borderRadius: 12,
+    padding: 12,
     backgroundColor: "#fff",
-    color: "#000",
-    marginBottom: 4,
+    color: "#111827",
+    marginBottom: 6,
   },
-  inputDisabled: { backgroundColor: "#f5f5f5", color: "#666" },
-  helperText: { alignSelf: "flex-start", fontSize: 12, color: "#666", marginBottom: 8 },
+  inputDisabled: { backgroundColor: "#F3F4F6", color: "#9CA3AF" },
+  helperText: { alignSelf: "flex-start", fontSize: 12, color: "#9CA3AF", marginBottom: 8 },
 
   textArea: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    padding: 10,
-    minHeight: 100,
-    marginTop: 2,
-    marginBottom: 14,
-    textAlignVertical: "top",
-    backgroundColor: "#fff",
-    color: "#000",
+    padding: 12,
+    fontSize: 14,
+    minHeight: 110,
+    color: "#111827",
   },
+  bioBox: {
+    borderWidth: 1,
+    borderColor: "#E6E6EA",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  charCount: { alignSelf: "flex-end", color: "#9CA3AF", fontSize: 12, marginTop: 6 },
 
-  button: { borderRadius: 10, overflow: "hidden", marginTop: 10, alignSelf: "center" },
-  gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: "center", borderRadius: 10 },
-  buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
-
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ccc" },
-  activeDot: { backgroundColor: "#A855F7" },
-
-  // Niches chip grid
-  subtext: { textAlign: "center", fontSize: 14, color: "#333", marginBottom: 20 },
+  /* niches — updated / compressed */  
   nicheWrap: {
     width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 8,
+    marginBottom: 4,         // ** CHANGED **
   },
   nicheChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,      // ** CHANGED **
+    paddingHorizontal: 10,   // ** CHANGED **
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#E6E6EA",
     backgroundColor: "#fff",
+    marginRight: 6,          // ** CHANGED **
+    marginBottom: 6,         // ** CHANGED **
   },
   nicheChipSelected: {
-    borderColor: "#9333EA",
+    borderColor: "#D6BBFF",
     backgroundColor: "#F5F3FF",
   },
-  nicheText: { color: "#333", fontSize: 14 },
+  nicheText: { color: "#374151", fontSize: 13 },        // ** CHANGED **
   nicheTextSelected: { color: "#6D28D9", fontWeight: "700" },
+  helperSmall: { color: "#9CA3AF", fontSize: 13, marginTop: 6 },
 
-  // Socials
-  socialRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: "#ccc", borderRadius: 10, padding: 12, backgroundColor: "#fff" },
-  socialIcon: { width: 22, height: 22, resizeMode: "contain" },
-  socialLabel: { fontSize: 15, color: "#000" },
+  /* location removed (styles kept) */
+  locationRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", gap: 8, marginTop: 8 },
+  smallInputWrap: { flex: 1 },
+  smallLabel: { fontSize: 12, color: "#374151", marginBottom: 6 },
+  smallInput: {
+    borderWidth: 1,
+    borderColor: "#E6E6EA",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    color: "#111827",
+  },
 
-  // Done
+  /* socials */
+  socialRow: { width: "100%", flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  socialLeft: { width: 120, flexDirection: "row", alignItems: "center" },
+  socialIcon: { width: 28, height: 28, resizeMode: "contain" },
+  socialLabel: { marginLeft: 10, fontSize: 14, color: "#111827", width: 70 },
+  socialInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E6E6EA",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    color: "#111827",
+  },
+
+  /* Continue CTA used previously: replaced by small bottom-right CTA */
+  cta: { borderRadius: 10, overflow: "hidden", marginTop: 16, alignSelf: "center", width: "100%" },
+  ctaInner: { paddingVertical: 14, alignItems: "center", borderRadius: 10 },
+  ctaText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  /* smaller pill CTA anchored bottom-right */
+  bottomCta: {
+    position: "absolute",
+    right: 20,
+    bottom: 100,
+    width: 120,
+    borderRadius: 28,
+    overflow: "hidden",
+  },
+  ctaInnerSmall: { paddingVertical: 10, alignItems: "center", borderRadius: 28 },
+  ctaTextSmall: { color: "#fff", fontSize: 14, fontWeight: "700" },
+
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ccc" },
+  activeDot: { backgroundColor: "#A855F7" },
+
+  /* done */
   checkIcon: { width: 100, height: 100, marginVertical: 30, resizeMode: "contain" },
   completeText: { fontSize: 16, textAlign: "center", color: "#000", marginBottom: 40 },
+
+  /* misc */
+  eyeButton: {
+    position: "absolute",
+    right: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
 });

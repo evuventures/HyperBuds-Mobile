@@ -58,6 +58,14 @@ export default function WelcomePage() {
           <Text style={styles.buttonText}>Sign Up</Text>
         </LinearGradient>
       </TouchableOpacity>
+      {/* Dev Button (hidden in corner) */}
+<TouchableOpacity
+  style={styles.devButton}
+  onPress={() => router.push('/dev')}
+>
+  <Text style={styles.devText}>⚙️</Text>
+</TouchableOpacity>
+
 
       
     </View>
@@ -123,4 +131,17 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
   },
+  devButton: {
+    position: 'absolute',
+    top: 40,      // adjust position
+    right: 20,    // adjust position
+    padding: 6,
+    opacity: 0.3, // keeps it subtle
+  },
+  
+  devText: {
+    fontSize: 14,
+    color: '#000',
+  },
+  
 });
