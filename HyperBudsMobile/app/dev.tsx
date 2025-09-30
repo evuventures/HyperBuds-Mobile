@@ -20,6 +20,7 @@ export default function Dev() {
     { label: "Profile", path: "/profile/profile" },
     { label: "AI Matchmaker", path: "/main/matchmaker/aimatchmaker" },
     { label: "Explore", path: "/main/explore" },
+    {label:"onboarding", path: "/registration/onboarding"}
     // add more routes here as needed
   ];
 
