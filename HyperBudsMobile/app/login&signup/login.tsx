@@ -9,9 +9,11 @@ import {
   ImageBackground,
   ActivityIndicator,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather, AntDesign, FontAwesome5 } from '@expo/vector-icons';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -20,13 +22,10 @@ export const screenOptions = { headerShown: false };
 
 /**
  * Backend base URL
- * Defaults to Render. Override with EXPO_PUBLIC_API_BASE_URL if needed.
  */
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
-
-/* ----------------------------- Helpers ----------------------------- */
 
 const safeJson = (text: string) => {
   try {
@@ -90,45 +89,58 @@ const looksLikeUnverified = (msg: string) => {
   );
 };
 
-/** Best-effort email verification — tries multiple shapes/endpoints and returns true on any 2xx */
 async function tryVerifyEmail(email: string) {
   const endpoints = [
     `${API_BASE}/auth/verify-email`,
-    `${API_BASE}/auth/verfiy-email`, // fallback if backend has typo
+    `${API_BASE}/auth/verfiy-email`,
   ];
 
   const attempts: Array<() => Promise<Response>> = [];
   for (const ep of endpoints) {
-    // POST body variants
     attempts.push(() =>
-      fetchWithTimeout(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email }),
-      }, 20000)
+      fetchWithTimeout(
+        ep,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email }),
+        },
+        20000
+      )
     );
     attempts.push(() =>
-      fetchWithTimeout(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ userId: email }),
-      }, 20000)
+      fetchWithTimeout(
+        ep,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ userId: email }),
+        },
+        20000
+      )
     );
     attempts.push(() =>
-      fetchWithTimeout(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ token: 'dev' }),
-      }, 20000)
+      fetchWithTimeout(
+        ep,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ token: 'dev' }),
+        },
+        20000
+      )
     );
     attempts.push(() =>
-      fetchWithTimeout(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ code: '000000' }),
-      }, 20000)
+      fetchWithTimeout(
+        ep,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ code: '000000' }),
+        },
+        20000
+      )
     );
-    // GET ?email=
     const qs = `${ep}?email=${encodeURIComponent(email)}`;
     attempts.push(() => fetchWithTimeout(qs, { method: 'GET' }, 20000));
   }
@@ -138,26 +150,11 @@ async function tryVerifyEmail(email: string) {
       const r = await go();
       if (r.ok) return true;
     } catch {
-      // keep trying
+      // ignore and continue
     }
   }
   return false;
 }
-
-// Dev helper (kept but unused in UI)
-/* const clearSavedSession = async () => {
-  await AsyncStorage.multiRemove([
-    'user',
-    'isLoggedIn',
-    'rememberedEmail',
-    'auth.accessToken',
-    'auth.refreshToken',
-    'auth.tokenIssuedAt',
-  ]);
-  console.log('✅ Cleared saved session keys');
-}; */
-
-/* ----------------------------- Component ----------------------------- */
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -171,9 +168,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Debug info (commented out for cleanup)
-  // const [diag, setDiag] = useState<string>('');
-
   useEffect(() => {
     (async () => {
       const savedEmail = await AsyncStorage.getItem('rememberedEmail');
@@ -182,20 +176,6 @@ export default function LoginScreen() {
         setRememberMe(true);
       }
     })();
-
-    // 🔧 TEST/DEV HEALTH CHECK — commented out to clean page
-    // (async () => {
-    //   try {
-    //     setDiag(`Checking server…`);
-    //     await withRetry(async () => {
-    //       const r = await fetchWithTimeout(`${API_BASE}/health`, { method: 'GET' }, 20000);
-    //       if (!r.ok) throw new Error(`Health check ${r.status}`);
-    //       setDiag(`Server OK (${r.status}).`);
-    //     }, 1, 1200);
-    //   } catch (e: any) {
-    //     setDiag(`Health check failed: ${e?.message || e}`);
-    //   }
-    // })();
   }, []);
 
   const performLogin = async (email: string, pwd: string) => {
@@ -249,18 +229,15 @@ export default function LoginScreen() {
     const email = identifier.trim();
 
     try {
-      // First attempt
       try {
         await performLogin(email, password);
       } catch (e: any) {
         const msg = String(e?.message || e);
-        // If unverified, attempt to verify and retry once
         if (looksLikeUnverified(msg)) {
           const verified = await tryVerifyEmail(email);
           if (!verified) {
             throw new Error('Email not verified. Please check your inbox or contact support.');
           }
-          // Retry once after verification
           await performLogin(email, password);
         } else {
           throw e;
@@ -287,7 +264,6 @@ export default function LoginScreen() {
     }
   };
 
-  // 🚀 Quick Login with provided demo credentials
   const quickLogin = async () => {
     setError(null);
     setLoading(true);
@@ -312,217 +288,248 @@ export default function LoginScreen() {
       style={styles.background}
       resizeMode="cover"
     >
-      <View style={styles.container}>
-        <View style={styles.headerWrapper}>
-          {/* 🔧 DEV BUTTON (commented out to clean page)
-          <View style={{ alignItems: 'center', marginTop: 8 }}>
-            <TouchableOpacity onPress={clearSavedSession}>
-              <Text style={{ fontSize: 12, color: '#888', textDecorationLine: 'underline' }}>
-                Clear saved session (dev)
-              </Text>
-            </TouchableOpacity>
-          </View> 
-          */}
-          <Text style={styles.loginTitle}>Log In</Text>
-        </View>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.screenWrap}>
 
-        {/* 🔧 DEBUG HEALTH BOX (commented out to clean page)
-        {diag ? (
-          <View style={styles.debugBox}>
-            <Text style={styles.mono}>API: {API_BASE}</Text>
-            <Text style={styles.mono}>{diag}</Text>
-          </View>
-        ) : null}
-        */}
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.welcome}>Welcome back!</Text>}
-
-        {/* Email */}
-        <View style={styles.inputField}>
-          <Feather name="user" size={20} color="#aaa" style={styles.inputIcon} />
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor="#aaa"
-            style={styles.input}
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            returnKeyType="next"
-            onSubmitEditing={() => {}}
-          />
-        </View>
-
-        {/* Password */}
-        <View style={styles.inputField}>
-          <Feather name="lock" size={20} color="#aaa" style={styles.inputIcon} />
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor="#aaa"
-            secureTextEntry={!showPassword}
-            style={[styles.input, { paddingRight: 40 }]}
-            value={password}
-            onChangeText={setPassword}
-            autoCapitalize="none"
-            returnKeyType="done"
-            onSubmitEditing={onSubmit}
-          />
-          <TouchableOpacity
-            onPress={() => setShowPassword((p) => !p)}
-            style={styles.eyeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="#555" />
+          {/* Back Button */}
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Feather name="arrow-left" size={24} color="#111827" />
           </TouchableOpacity>
-        </View>
 
-        {/* Row: remember + forgot */}
-        <View style={styles.row}>
-          <View style={styles.rememberRow}>
+          {/* Gradient-masked title */}
+          <MaskedView
+            maskElement={
+              <Text style={[styles.title, { backgroundColor: 'transparent' }]}>Log in</Text>
+            }
+          >
+            <LinearGradient
+              colors={['#A855F7', '#3B82F6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ width: '100%', height: 44 }}
+            />
+          </MaskedView>
+
+          <Text style={styles.subtitle}>Welcome Back!</Text>
+
+          <View style={styles.socialRow}>
+            <TouchableOpacity style={[styles.socialBtn, styles.shadowedBox]} activeOpacity={0.85}>
+              <View style={styles.socialInner}>
+                <FontAwesome5 name="facebook-f" size={18} color="#1877F2" />
+                <Text style={styles.socialText}>Facebook</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.socialBtn, styles.shadowedBox]} activeOpacity={0.85}>
+              <View style={styles.socialInner}>
+                <FontAwesome5 name="google" size={18} color="#DB4437" />
+                <Text style={styles.socialText}>Google</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.orRow}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>Or</Text>
+            <View style={styles.orLine} />
+          </View>
+
+          <View style={[styles.inputField, styles.shadowedBox]}>
+            <TextInput
+              placeholder="Email"
+              placeholderTextColor="#A0A0A0"
+              style={styles.input}
+              value={identifier}
+              onChangeText={setIdentifier}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              returnKeyType="next"
+              onSubmitEditing={() => {}}
+            />
+          </View>
+
+          <View style={[styles.inputField, styles.shadowedBox]}>
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="#A0A0A0"
+              secureTextEntry={!showPassword}
+              style={[styles.input, { paddingRight: 44 }]}
+              value={password}
+              onChangeText={setPassword}
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
+            />
             <TouchableOpacity
-              style={[styles.circle, rememberMe && styles.circleChecked]}
-              onPress={() => setRememberMe(!rememberMe)}
+              onPress={() => setShowPassword((p) => !p)}
+              style={styles.eyeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              {rememberMe && <Feather name="check" size={14} color="#fff" />}
+              <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color="#6B7280" />
             </TouchableOpacity>
-            <Text style={styles.rememberText}>Remember me</Text>
           </View>
-          <TouchableOpacity onPress={() => { router.push('/login&signup/forgotpass') }}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Login Button */}
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={onSubmit}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#3B82F6', '#9333EA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.loginGradient}
+          <View style={styles.forgotRow}>
+            <TouchableOpacity onPress={() => { router.push('/login&signup/forgotpass') }}>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={styles.signinBtn}
+            onPress={onSubmit}
+            disabled={loading}
+            activeOpacity={0.85}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginText}>Log In</Text>}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* ✅ Quick Login (demo) */}
-        <TouchableOpacity
-          style={[styles.loginButton, { marginTop: 6 }]}
-          onPress={quickLogin}
-          disabled={loading}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={['#22c55e', '#16a34a']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.loginGradient}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginText}>Quick Login (demo)</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Signup link */}
-        <View style={styles.signupContainer}>
-          <Text style={styles.signupPrompt}>Don’t have an account?</Text>
-          <TouchableOpacity onPress={() => { router.push('/login&signup/signup') }}>
-            <Text style={styles.signupLink}>Sign Up</Text>
+            <LinearGradient
+              colors={['#A855F7', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.signinGradient}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signinText}>Log in</Text>}
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
 
-        {/* Social row (placeholder) */}
-        
-          
-        
-      </View>
+          <View style={styles.smallActions}>
+            <TouchableOpacity
+              style={styles.quickLoginSmall}
+              onPress={quickLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.quickLoginSmallText}>Quick Login</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.signupRow}>
+            <Text style={styles.noAccount}>You don't have an account?</Text>
+            <TouchableOpacity onPress={() => { router.push('/login&signup/signup') }}>
+              <Text style={styles.signupLink}> Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
     </ImageBackground>
   );
 }
 
-/* ----------------------------- Styles ----------------------------- */
-
 const styles = StyleSheet.create({
-  background: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 30, backgroundColor: 'transparent' },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  safe: { flex: 1, backgroundColor: 'transparent' },
 
-  headerWrapper: { height: 200, justifyContent: 'flex-end', alignItems: 'center' },
-  loginTitle: {
-    fontSize: 46,
-    fontWeight: '600',
-    color: '#A855F7',
-    textAlign: 'center',
-    lineHeight: 50,
-    letterSpacing: -1.5,
-    marginBottom: 24,
+  screenWrap: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingTop: Platform.OS === 'ios' ? 100 : 140,
+    backgroundColor: 'transparent',
   },
 
-  // (Commented-out debug styles kept in case you re-enable)
-  debugBox: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#DDD6FE',
-    borderWidth: 1,
-    borderRadius: 8,
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 0 : 40,
+    left: 16,
+    zIndex: 10,
     padding: 8,
-    marginBottom: 10,
-  },
-  mono: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) as any,
-    fontSize: 12,
-    color: '#4C1D95',
   },
 
-  welcome: { fontSize: 22, fontWeight: '600', textAlign: 'center', marginTop: 8, marginBottom: 12 },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+    height: 44,
+  },
 
-  errorText: { color: 'crimson', textAlign: 'center', marginBottom: 12 },
+  subtitle: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop:10,
+    marginBottom: 30,
+  },
+
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop:25,
+    marginBottom: 12,
+  },
+  socialBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginHorizontal: 6,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+  socialInner: { flexDirection: 'row', alignItems: 'center' },
+  socialText: { marginLeft: 10, fontWeight: '600', color: '#111827' },
+
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  orLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  orText: { marginHorizontal: 8, color: '#9CA3AF' },
 
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 14,
+    backgroundColor: '#F7FAFF',
+  },
+
+  shadowedBox: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 10,
+    elevation: 6,
+  },
+
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+
+  forgotRow: { alignItems: 'flex-end', marginBottom: 6 },
+  forgotText: { color: '#2563EB', fontWeight: '600' },
+
+  errorText: { color: 'crimson', textAlign: 'center', marginVertical: 6 },
+
+  signinBtn: { borderRadius: 12, overflow: 'hidden', marginTop: 8 },
+  signinGradient: { paddingVertical: 14, alignItems: 'center', borderRadius: 12 },
+  signinText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  smallActions: { alignItems: 'flex-start', marginTop: 8 },
+  quickLoginSmall: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    position: 'relative',
-  },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 16, color: '#000' },
-  eyeButton: { position: 'absolute', right: 12, padding: 4, justifyContent: 'center', alignItems: 'center' },
-
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  rememberRow: { flexDirection: 'row', alignItems: 'center' },
-  rememberText: { marginLeft: 5, marginRight: 10, color: '#333' },
-  forgotText: { color: '#2563EB', fontWeight: '500' },
-
-  circle: {
-    width: 20,
-    height: 20,
+    paddingVertical: 8,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#6A0DAD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    marginRight: 2,
   },
-  circleChecked: { backgroundColor: '#6A0DAD' },
+  quickLoginSmallText: { color: '#374151', fontWeight: '600', fontSize: 13 },
 
-  loginButton: { borderRadius: 10, overflow: 'hidden', marginBottom: 18 },
-  loginGradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', alignSelf: 'center', borderRadius: 10 },
-  loginText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 14, alignItems: 'center' },
+  noAccount: { color: '#6B7280' },
+  signupLink: { color: '#6D28D9', fontWeight: '700' },
 
-  signupContainer: { alignItems: 'center', marginBottom: 10 },
-  signupPrompt: { fontSize: 14, color: '#333' },
-  signupLink: { fontSize: 16, fontWeight: '600', color: '#338BFF', marginTop: 4 },
-
+  eyeButton: {
+    position: 'absolute',
+    right: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
 });
