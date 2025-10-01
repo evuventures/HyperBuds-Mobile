@@ -325,6 +325,7 @@ export default function SubscriptionsScreen() {
       const paymentMethodId = newPMId || selectedMethodId || undefined;
       if (!paymentMethodId && !subState?.status) {
         Alert.alert("Payment Method", "Select a saved card or add a new one.");
+        setLoading(false);
         return;
       }
 
@@ -432,7 +433,7 @@ export default function SubscriptionsScreen() {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <LinearGradient
-        colors={["#6C63FF", "#A48CFF"]}
+        colors={["#8B5CF6", "#3B82F6"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -466,7 +467,7 @@ export default function SubscriptionsScreen() {
           <View style={{ height: 8 }} />
           <TouchableOpacity onPress={runConnectivityChecks} disabled={loading}>
             <LinearGradient
-              colors={["#6C63FF", "#A48CFF"]}
+              colors={["#8B5CF6", "#3B82F6"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
@@ -513,7 +514,7 @@ export default function SubscriptionsScreen() {
                 <View style={styles.planRowHeader}>
                   <Text style={styles.planRowTitle}>{plan.title}</Text>
                   {selectedPlan === plan.key ? (
-                    <Feather name="check-circle" size={18} color="#6C63FF" />
+                    <Feather name="check-circle" size={18} color="#8B5CF6" />
                   ) : (
                     <Feather name="circle" size={18} color="#bbb" />
                   )}
@@ -551,7 +552,7 @@ export default function SubscriptionsScreen() {
                       <Ionicons
                         name={isSelected ? "radio-button-on" : "radio-button-off"}
                         size={18}
-                        color={isSelected ? "#6C63FF" : "#888"}
+                        color={isSelected ? "#8B5CF6" : "#888"}
                         style={{ marginRight: 8 }}
                       />
                       <View style={{ flex: 1 }}>
@@ -596,10 +597,10 @@ export default function SubscriptionsScreen() {
             activeOpacity={0.85}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Feather name="plus-circle" size={18} color="#6C63FF" />
+              <Feather name="plus-circle" size={18} color="#8B5CF6" />
               <Text style={styles.addCardTitle}>  Add New Card (Stripe)</Text>
             </View>
-            <Feather name={showAddCard ? "chevron-up" : "chevron-down"} size={18} color="#6C63FF" />
+            <Feather name={showAddCard ? "chevron-up" : "chevron-down"} size={18} color="#8B5CF6" />
           </TouchableOpacity>
 
           {showAddCard ? (
@@ -618,7 +619,7 @@ export default function SubscriptionsScreen() {
                     style={{ opacity: cardComplete && !loading ? 1 : 0.6 }}
                   >
                     <LinearGradient
-                      colors={["#6C63FF", "#A48CFF"]}
+                      colors={["#8B5CF6", "#3B82F6"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.primaryBtn}
@@ -648,7 +649,7 @@ export default function SubscriptionsScreen() {
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={styles.addCardTitle}>Manual Card</Text>
               <TouchableOpacity onPress={() => setShowManualCard(v => !v)}>
-                <Feather name={showManualCard ? "chevron-up" : "chevron-down"} size={18} color="#6C63FF" />
+                <Feather name={showManualCard ? "chevron-up" : "chevron-down"} size={18} color="#8B5CF6" />
               </TouchableOpacity>
             </View>
             {showManualCard ? (
@@ -713,7 +714,7 @@ export default function SubscriptionsScreen() {
         <Section title="Confirm" icon="check-circle">
           <TouchableOpacity onPress={handleSubscribeOrUpdate} disabled={loading}>
             <LinearGradient
-              colors={["#6C63FF", "#A48CFF"]}
+              colors={["#8B5CF6", "#3B82F6"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
@@ -861,11 +862,11 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
     padding: 12,
   },
-  planRowCardSelected: { borderColor: "#6C63FF", backgroundColor: "#f5f5ff" },
-  planRowCardFeatured: { borderColor: "#d8ccff", backgroundColor: "#f9f7ff" },
+  planRowCardSelected: { borderColor: "#8B5CF6", backgroundColor: "#f5f7ff" },
+  planRowCardFeatured: { borderColor: "#dbe7ff", backgroundColor: "#f9f9ff" },
   planRowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   planRowTitle: { fontSize: 16, fontWeight: "800", color: "#222" },
-  planRowPrice: { fontSize: 22, fontWeight: "800", color: "#6C63FF", marginTop: 4 },
+  planRowPrice: { fontSize: 22, fontWeight: "800", color: "#3B82F6", marginTop: 4 },
   planFeatRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   planFeatText: { fontSize: 12, color: "#444" },
 
@@ -880,7 +881,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  pmRowSelected: { borderColor: "#6C63FF", backgroundColor: "#f5f5ff" },
+  pmRowSelected: { borderColor: "#8B5CF6", backgroundColor: "#f5f7ff" },
   pmRadioRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   pmTitle: { fontSize: 14, color: "#333", fontWeight: "700" },
   pmSub: { fontSize: 12, color: "#666", marginTop: 2 },
@@ -895,8 +896,8 @@ const styles = StyleSheet.create({
   },
   defaultPill: {
     fontSize: 10,
-    color: "#6C63FF",
-    backgroundColor: "#f0ecff",
+    color: "#3B82F6",
+    backgroundColor: "#EEF2FF",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -948,7 +949,7 @@ const styles = StyleSheet.create({
 
   /* Buttons */
   primaryBtn: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 999,
     alignItems: "center",
@@ -961,12 +962,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#6C63FF",
+    borderColor: "#8B5CF6",
     alignItems: "center",
     justifyContent: "center",
     height: 40,
   },
-  outlineBtnText: { color: "#6C63FF", fontWeight: "700", fontSize: 14 },
+  outlineBtnText: { color: "#8B5CF6", fontWeight: "700", fontSize: 14 },
 
   card: {
     backgroundColor: "#fafafa",

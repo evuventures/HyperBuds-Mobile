@@ -1,4 +1,3 @@
-// app/main/explore.tsx
 import React, { useEffect, useState, ComponentProps, useMemo } from "react";
 import {
   SafeAreaView,
@@ -342,7 +341,8 @@ export default function Explore() {
         ) : trending.length === 0 ? (
           [1, 2, 3].map((i) => (
             <View key={i} style={styles.card}>
-              <View style={styles.cardImagePlaceholder} />
+              {/* Use sampleimage.png instead of blank placeholder */}
+              <Image source={require("../../assets/images/sampleimage.png")} style={styles.cardImage} />
               <Text style={styles.cardTitle}>Featured Collaboration #{i}</Text>
               <Text style={styles.cardSubtitle}>
                 Fresh collabs and highlights appear here when available.
@@ -356,7 +356,8 @@ export default function Explore() {
               {t.profile?.avatar ? (
                 <Image source={{ uri: t.profile.avatar }} style={styles.cardImage} />
               ) : (
-                <View style={styles.cardImagePlaceholder} />
+                // Use sampleimage.png for missing featured collab images
+                <Image source={require("../../assets/images/sampleimage.png")} style={styles.cardImage} />
               )}
               <Text style={styles.cardTitle}>{t.title || "Top Creator"}</Text>
               <Text style={styles.cardSubtitle}>

@@ -336,7 +336,7 @@ export default function LoginScreen() {
           <View style={[styles.inputField, styles.shadowedBox]}>
             <TextInput
               placeholder="Email"
-              placeholderTextColor="#A0A0A0"
+              placeholderTextColor="#D3D3D3"
               style={styles.input}
               value={identifier}
               onChangeText={setIdentifier}
@@ -350,7 +350,7 @@ export default function LoginScreen() {
           <View style={[styles.inputField, styles.shadowedBox]}>
             <TextInput
               placeholder="Password"
-              placeholderTextColor="#A0A0A0"
+              placeholderTextColor="#D3D3D3"
               secureTextEntry={!showPassword}
               style={[styles.input, { paddingRight: 44 }]}
               value={password}
@@ -393,6 +393,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.smallActions}>
+            {/*
             <TouchableOpacity
               style={styles.quickLoginSmall}
               onPress={quickLogin}
@@ -401,6 +402,7 @@ export default function LoginScreen() {
             >
               <Text style={styles.quickLoginSmallText}>Quick Login</Text>
             </TouchableOpacity>
+            */}
           </View>
 
           <View style={styles.signupRow}>

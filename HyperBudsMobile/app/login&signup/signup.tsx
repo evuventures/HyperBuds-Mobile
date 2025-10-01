@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ImageBackground,
   ActivityIndicator,
   Platform,
   SafeAreaView,
@@ -107,17 +106,16 @@ export default function SignupScreen() {
   // Form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  // confirm and showConfirm removed (field commented out)
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
 
   const validate = () => {
     if (!email.includes('@')) return 'Enter a valid email';
     if (password.length < 8) return 'Password must be at least 8 characters';
-    if (password !== confirm) return 'Passwords do not match';
+    // Removed confirm-password match check so confirm is no longer required
     if (!agree) return 'You must agree to the Terms of Service';
     return null;
   };
@@ -253,17 +251,13 @@ export default function SignupScreen() {
   };
 
   return (
-    <ImageBackground
-      source={require('../../assets/images/signup.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
+    <LinearGradient colors={['#FFFFFF', '#F7FAFF']} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
           >
@@ -320,7 +314,7 @@ export default function SignupScreen() {
               <View style={[styles.inputField, styles.shadowedBox]}>
                 <TextInput
                   placeholder="Email"
-                  placeholderTextColor="#A0A0A0"
+                  placeholderTextColor="#D3D3D3"
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
@@ -333,7 +327,7 @@ export default function SignupScreen() {
               <View style={[styles.inputField, styles.shadowedBox]}>
                 <TextInput
                   placeholder="Password"
-                  placeholderTextColor="#A0A0A0"
+                  placeholderTextColor="##D3D3D3"
                   secureTextEntry={!showPassword}
                   style={[styles.input, { paddingRight: 44 }]}
                   value={password}
@@ -350,6 +344,11 @@ export default function SignupScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/*
+                Confirm Password field commented out per request.
+                If you want to re-enable, remove the comment block and re-add confirm/showConfirm state.
+              */}
+              {/*
               <View style={[styles.inputField, styles.shadowedBox]}>
                 <TextInput
                   placeholder="Confirm Password"
@@ -370,6 +369,7 @@ export default function SignupScreen() {
                   <Feather name={showConfirm ? 'eye-off' : 'eye'} size={18} color="#6B7280" />
                 </TouchableOpacity>
               </View>
+              */}
 
               {/* Terms row */}
               <View style={styles.termsRow}>
@@ -421,13 +421,13 @@ export default function SignupScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </ImageBackground>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
-    ...StyleSheet.absoluteFillObject,
+  gradient: {
+    flex: 1,
   },
   safe: {
     flex: 1,
