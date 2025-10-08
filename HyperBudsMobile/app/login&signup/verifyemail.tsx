@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +20,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const screenOptions = { headerShown: false };
 
-/** Official backend (Render). Override via EXPO_PUBLIC_API_BASE_URL if needed. */
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
@@ -71,17 +71,14 @@ export default function VerifyEmailScreen() {
 
   const [email, setEmail] = useState<string>(params?.email || '');
   const [hint, setHint] = useState<string>('');
-
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // New: fallback password input if AsyncStorage doesn't have one
   const [hasStoredPassword, setHasStoredPassword] = useState<boolean>(true);
   const [fallbackPw, setFallbackPw] = useState<string>('');
   const [showPw, setShowPw] = useState<boolean>(false);
 
-  // Pull pendingSignup.* from storage if not provided; also see if password exists
   useEffect(() => {
     (async () => {
       try {
@@ -96,18 +93,18 @@ export default function VerifyEmailScreen() {
         const storedPassword = await AsyncStorage.getItem('pendingSignup.password');
         setHasStoredPassword(!!storedPassword);
       } catch {
-        // If anything fails, we’ll just show the fallback input
         setHasStoredPassword(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const maskEmail = (addr?: string | null) => {
     if (!addr || !addr.includes('@')) return addr || '';
     const [name, domain] = addr.split('@');
     const maskedName =
-      name.length <= 2 ? name[0] + '*' : name[0] + '*'.repeat(Math.max(1, name.length - 2)) + name[name.length - 1];
+      name.length <= 2
+        ? name[0] + '*'
+        : name[0] + '*'.repeat(Math.max(1, name.length - 2)) + name[name.length - 1];
     return `${maskedName}@${domain}`;
   };
 
@@ -147,7 +144,6 @@ export default function VerifyEmailScreen() {
     setLoading(true);
     setError(null);
     try {
-      // Get pending credentials saved at signup
       const storedEmail =
         email?.trim() || (await AsyncStorage.getItem('pendingSignup.email')) || '';
       const storedPassword = await AsyncStorage.getItem('pendingSignup.password');
@@ -159,7 +155,6 @@ export default function VerifyEmailScreen() {
         );
       }
 
-      // Try to log in — if email is verified, this should now succeed
       const res = await withRetry(async () => {
         return await fetchWithTimeout(
           `${API_BASE}/auth/login`,
@@ -189,7 +184,6 @@ export default function VerifyEmailScreen() {
       const userObj: any = data?.user ?? {};
       if (!accessToken || !refreshToken) throw new Error('Malformed server response (missing tokens).');
 
-      // Store session
       await AsyncStorage.multiSet([
         ['auth.accessToken', accessToken],
         ['auth.refreshToken', refreshToken],
@@ -198,10 +192,7 @@ export default function VerifyEmailScreen() {
         ['isLoggedIn', 'true'],
       ]);
 
-      // Cleanup pending creds (we’re done with them)
       await AsyncStorage.multiRemove(['pendingSignup.email', 'pendingSignup.password']);
-
-      // Go to onboarding
       router.replace('/registration/onboarding');
     } catch (e: any) {
       setError(e?.message || 'Could not confirm verification yet.');
@@ -221,95 +212,150 @@ export default function VerifyEmailScreen() {
         <Ionicons name="arrow-back" size={24} color="#000" />
       </TouchableOpacity>
 
-      <Text style={styles.title}>Verify your{'\n'}email</Text>
+      {/* Main scrollable content with unified side margins */}
+      <ScrollView
+        contentContainerStyle={styles.contentWrapper}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>Verify your email</Text>
 
-      <Text style={styles.subtitle}>
-        We’ve sent a verification link to{'\n'}
-        <Text style={styles.emailStrong}>{hint || maskEmail(email)}</Text>
-        {'\n\n'}
-        Please open your email app, tap the link to verify, then return here and press Continue.
-      </Text>
+        <Text style={styles.subtitle}>
+          We’ve sent a verification link to{'\n'}
+          <Text style={styles.emailStrong}>{hint || maskEmail(email)}</Text>
+          {'\n\n'}
+          Please open your email app, tap the link to verify, then return here and press Continue.
+        </Text>
 
-      {/* If we don't have a stored password, show a fallback password field */}
-      {!hasStoredPassword && (
-        <View style={{ width: '100%', marginTop: 12 }}>
-          <Text style={{ marginBottom: 6, color: '#111', fontWeight: '600' }}>
-            Enter your password to continue
-          </Text>
-          <View style={styles.passwordRow}>
-            <TextInput
-              value={fallbackPw}
-              onChangeText={setFallbackPw}
-              secureTextEntry={!showPw}
-              placeholder="Password"
-              placeholderTextColor="#999"
-              autoCapitalize="none"
-              style={styles.passwordInput}
-            />
-            <TouchableOpacity onPress={() => setShowPw((s) => !s)} style={styles.eyeBtn} accessibilityRole="button">
-              <Ionicons name={showPw ? 'eye-off' : 'eye'} size={20} color="#555" />
-            </TouchableOpacity>
+        {!hasStoredPassword && (
+          <View style={{ width: '100%', marginTop: 12 }}>
+            <Text style={{ marginBottom: 6, color: '#111', fontWeight: '600' }}>
+              Enter your password to continue
+            </Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                value={fallbackPw}
+                onChangeText={setFallbackPw}
+                secureTextEntry={!showPw}
+                placeholder="Password"
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                style={styles.passwordInput}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPw((s) => !s)}
+                style={styles.eyeBtn}
+                accessibilityRole="button"
+              >
+                <Ionicons name={showPw ? 'eye-off' : 'eye'} size={20} color="#555" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {/* Continue */}
-      <TouchableOpacity style={styles.primaryButton} onPress={continueAfterVerify} disabled={loading}>
-        <LinearGradient
-          colors={['#3B82F6', '#9333EA']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.primaryGradient}
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={continueAfterVerify}
+          disabled={loading}
+          activeOpacity={0.9}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Resend */}
-      <View style={styles.resendContainer}>
-        <Text style={styles.resendText}>Didn’t get the email?</Text>
-        <TouchableOpacity onPress={resendEmail} disabled={resending} style={{ paddingVertical: 6 }}>
-          {resending ? <ActivityIndicator /> : <Text style={styles.resendLink}>Resend verification email</Text>}
+          <LinearGradient
+            colors={['#8B5CF6', '#3B82F6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.primaryGradient}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Continue</Text>}
+          </LinearGradient>
         </TouchableOpacity>
-      </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.resendContainer}>
+          <Text style={styles.resendText}>Didn’t get the email?</Text>
+          <TouchableOpacity onPress={resendEmail} disabled={resending} style={{ paddingVertical: 6 }}>
+            {resending ? <ActivityIndicator /> : <Text style={styles.resendLink}>Resend verification email</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 24 },
-  back: { position: 'absolute', top: Platform.select({ ios: 30, android: 16 }), left: 20 },
+  container: { flex: 1, backgroundColor: '#fff' },
+
+  back: { position: 'absolute', top: Platform.select({ ios: 30, android: 16 }), left: 24 },
+
+  contentWrapper: {
+    paddingHorizontal: 15, // ⬅️ increased side margins for all content
+    alignItems: 'center',
+    paddingTop: 100,
+    paddingBottom: 60,
+  },
 
   title: {
-    marginTop: 90,
-    fontSize: 42,
-    fontWeight: '700',
-    lineHeight: 48,
-    color: '#A259FF',
+    fontSize: 28, // bigger title
+    fontWeight: '800',
+    color: '#6D28D9',
     textAlign: 'center',
-    letterSpacing: -1.0,
+    marginBottom: 14,
   },
-  subtitle: { marginTop: 16, fontSize: 16, color: '#333', textAlign: 'center' },
+  subtitle: { fontSize: 15, color: '#333', textAlign: 'center', lineHeight: 22, marginBottom: 10 },
   emailStrong: { fontWeight: '700', color: '#111' },
 
-  primaryButton: { borderRadius: 12, overflow: 'hidden', marginTop: 24 },
-  primaryGradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: 'center', borderRadius: 12 },
-  primaryText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  primaryButton: {
+    marginTop: 24,
+    width: '100%',
+    borderRadius: 12,
+    shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 6,
+    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
+  },
+  primaryGradient: {
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 
-  resendContainer: { marginTop: 18, alignItems: 'center' },
+  resendContainer: { marginTop: 20, alignItems: 'center' },
   resendText: { color: '#666', marginBottom: 4 },
-  resendLink: { textDecorationLine: 'underline', fontWeight: '600', color: '#000' },
+  resendLink: { textDecorationLine: 'underline', fontWeight: '600', color: '#111' },
 
   error: { marginTop: 14, color: 'crimson', textAlign: 'center' },
 
-  /* Decorative assets */
-  leftcircleimage: { position: 'absolute', top: 0, left: -50, width: 250, height: 250, resizeMode: 'contain', zIndex: -1 },
-  bottompoly: { position: 'absolute', bottom: -30, left: 80, width: 125, height: 125, resizeMode: 'contain', zIndex: -1 },
-  rightpoly: { position: 'absolute', top: 250, right: -30, width: 100, height: 100, resizeMode: 'contain', zIndex: -1 },
+  leftcircleimage: {
+    position: 'absolute',
+    top: 0,
+    left: -50,
+    width: 250,
+    height: 250,
+    resizeMode: 'contain',
+    zIndex: -1,
+  },
+  bottompoly: {
+    position: 'absolute',
+    bottom: -30,
+    left: 80,
+    width: 125,
+    height: 125,
+    resizeMode: 'contain',
+    zIndex: -1,
+  },
+  rightpoly: {
+    position: 'absolute',
+    top: 250,
+    right: -30,
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
+    zIndex: -1,
+  },
 
-  // Password fallback UI
   passwordRow: {
     width: '100%',
     borderWidth: 1,

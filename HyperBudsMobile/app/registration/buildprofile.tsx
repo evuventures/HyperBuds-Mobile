@@ -142,7 +142,7 @@ export default function BuildProfileScreen() {
         const raw = await res.text();
         const data = safeJson(raw);
 
-        // Avatar Prefill
+        // Avatar Prefill (keep avatar if available, but don't auto-fill text inputs)
         const avatarFromMe =
           data?.profile?.avatar ||
           data?.user?.avatar ||
@@ -152,26 +152,38 @@ export default function BuildProfileScreen() {
           setAvatar(avatarFromMe);
         }
 
-        // Username / display name Prefill
-        const u = (data?.profile?.username || "").trim();
-        if (u) {
-          setUsername(u);
-          setUsernameLocked(true); // already set on server; lock editing
-        }
-        const d = (data?.profile?.displayName || data?.user?.displayName || "").trim();
-        if (d) setDisplayName(d);
-
-        // Bio
-        if (typeof data?.profile?.bio === "string") setBio(data.profile.bio);
-
-        // Niches (valid only)
-        const incomingNiche: string[] = Array.isArray(data?.profile?.niche) ? data.profile.niche : [];
-        const valid = incomingNiche.filter((n): n is ValidNiche => (VALID_NICHES as readonly string[]).includes(n));
-        if (valid.length) {
-          setSelectedNiches(valid.slice(0, 5) as ValidNiche[]);
-        }
+        // --- IMPORTANT: force all text inputs to be blank regardless of server data ---
+        // This ensures username, displayName, bio, niches and socials start empty.
+        setUsername("");
+        setUsernameLocked(false); // allow editing even if server has a username
+        setDisplayName("");
+        setBio("");
+        setSelectedNiches([]);
+        // reset socials values to empty strings while preserving icons/labels
+        setSocials([
+          { key: "instagram", label: "Instagram", icon: require("../../assets/images/ig.png"), value: "" },
+          { key: "tiktok", label: "TikTok", icon: require("../../assets/images/tiktok.png"), value: "" },
+          { key: "youtube", label: "YouTube", icon: require("../../assets/images/yt.png"), value: "" },
+          { key: "twitch", label: "Twitch", icon: require("../../assets/images/twitch.png"), value: "" },
+          { key: "twitter", label: "Twitter (X)", icon: require("../../assets/images/twitter.png"), value: "" },
+          { key: "linkedin", label: "LinkedIn", icon: require("../../assets/images/linkedin.png"), value: "" },
+        ]);
       } catch (e) {
         console.warn("Failed to load /users/me", e);
+        // Still ensure inputs are blank if fetch fails
+        setUsername("");
+        setUsernameLocked(false);
+        setDisplayName("");
+        setBio("");
+        setSelectedNiches([]);
+        setSocials([
+          { key: "instagram", label: "Instagram", icon: require("../../assets/images/ig.png"), value: "" },
+          { key: "tiktok", label: "TikTok", icon: require("../../assets/images/tiktok.png"), value: "" },
+          { key: "youtube", label: "YouTube", icon: require("../../assets/images/yt.png"), value: "" },
+          { key: "twitch", label: "Twitch", icon: require("../../assets/images/twitch.png"), value: "" },
+          { key: "twitter", label: "Twitter (X)", icon: require("../../assets/images/twitter.png"), value: "" },
+          { key: "linkedin", label: "LinkedIn", icon: require("../../assets/images/linkedin.png"), value: "" },
+        ]);
       } finally {
         setLoadingMe(false);
       }
@@ -460,11 +472,11 @@ export default function BuildProfileScreen() {
               <TextInput
                 value={username}
                 onChangeText={(v) => setUsername(normalizeUsername(v))}
-                placeholder="Coolcreator123"
+                //placeholder="Coolcreator123"
                 placeholderTextColor="#9BA4B1"
                 autoCapitalize="none"
                 autoCorrect={false}
-                editable={true} 
+                editable={true}
                 style={[styles.input]}
               />
               <Text style={styles.helperText}>
@@ -477,7 +489,7 @@ export default function BuildProfileScreen() {
               <TextInput
                 value={displayName}
                 onChangeText={setDisplayName}
-                placeholder="Cool Creator"
+                //placeholder="Cool Creator"
                 placeholderTextColor="#9BA4B1"
                 autoCapitalize="words"
                 style={styles.input}

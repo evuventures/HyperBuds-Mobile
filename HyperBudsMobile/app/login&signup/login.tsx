@@ -393,7 +393,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.smallActions}>
-            {/*
+            {
             <TouchableOpacity
               style={styles.quickLoginSmall}
               onPress={quickLogin}
@@ -402,7 +402,7 @@ export default function LoginScreen() {
             >
               <Text style={styles.quickLoginSmallText}>Quick Login</Text>
             </TouchableOpacity>
-            */}
+            }
           </View>
 
           <View style={styles.signupRow}>

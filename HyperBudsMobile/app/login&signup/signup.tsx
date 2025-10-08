@@ -327,7 +327,7 @@ export default function SignupScreen() {
               <View style={[styles.inputField, styles.shadowedBox]}>
                 <TextInput
                   placeholder="Password"
-                  placeholderTextColor="##D3D3D3"
+                  placeholderTextColor="#D3D3D3"
                   secureTextEntry={!showPassword}
                   style={[styles.input, { paddingRight: 44 }]}
                   value={password}
