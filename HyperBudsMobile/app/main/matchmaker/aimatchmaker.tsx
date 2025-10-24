@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  TextInput,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -35,12 +37,12 @@ type Suggestion = {
     rizzScore?: number; // 0-100
   };
   breakdown?: {
-    audienceOverlap?: number;         // 0-1
-    nicheCompatibility?: number;      // 0-1
-    engagementStyle?: number;         // 0-1
-    geolocation?: number;             // 0-1
-    activityTime?: number;            // 0-1
-    rizzScoreCompatibility?: number;  // 0-1
+    audienceOverlap?: number; // 0-1
+    nicheCompatibility?: number; // 0-1
+    engagementStyle?: number; // 0-1
+    geolocation?: number; // 0-1
+    activityTime?: number; // 0-1
+    rizzScoreCompatibility?: number; // 0-1
   };
 };
 
@@ -60,16 +62,17 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 export default function AIMatchmakerScreen() {
   const router = useRouter();
 
+  // --- Tab state ---
+  const [activeTab, setActiveTab] = useState<"ai" | "prefs">("ai");
+
+  // --- Existing AI match states & animation (left unchanged) ---
   const [loading, setLoading] = useState(false);
   const [match, setMatch] = useState<Suggestion | null>(null);
   const [empty, setEmpty] = useState(false);
-
-  /** animation refs */
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const [randomRizz, setRandomRizz] = useState<number>(0);
   const rizzInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /** start loader animation */
   const startAnimation = () => {
     Animated.loop(
       Animated.sequence([
@@ -88,7 +91,6 @@ export default function AIMatchmakerScreen() {
       ])
     ).start();
 
-    // random rizz % numbers
     rizzInterval.current = setInterval(() => {
       setRandomRizz(Math.floor(80 + Math.random() * 20));
     }, 500);
@@ -102,18 +104,11 @@ export default function AIMatchmakerScreen() {
     }
   };
 
-  // cleanup on unmount
   useEffect(() => {
     return () => stopAnimation();
   }, []);
 
-  /**
-   * Try to get device location.
-   * If denied/unavailable, fall back to profile location from /profiles/me.
-   * Returns a query string like "&lng=-73.98&lat=40.76" or "".
-   */
   const resolveLocationQS = async (): Promise<string> => {
-    // 1) Try device location
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === "granted") {
@@ -131,10 +126,9 @@ export default function AIMatchmakerScreen() {
         }
       }
     } catch {
-      // ignore, fall through to profile
+      // ignore
     }
 
-    // 2) Fall back to profile location
     try {
       const res = await apiFetch("/profiles/me", { method: "GET" });
       const text = await res.text();
@@ -148,18 +142,14 @@ export default function AIMatchmakerScreen() {
         typeof coords[1] === "number" &&
         isFinite(coords[1])
       ) {
-        // coords format is [lng, lat]
         return `&lng=${coords[0]}&lat=${coords[1]}`;
       }
     } catch {
-      // no profile location available
+      // ignore
     }
-
-    // 3) Nothing usable
     return "";
   };
 
-  /** fetch a match */
   const handleGetMatch = async () => {
     setLoading(true);
     setMatch(null);
@@ -168,7 +158,6 @@ export default function AIMatchmakerScreen() {
     startAnimation();
 
     try {
-      // Build URL with location if available
       const locQS = await resolveLocationQS();
       const url = `/matching/suggestions?refresh=true&limit=1${locQS}`;
 
@@ -178,26 +167,20 @@ export default function AIMatchmakerScreen() {
       try {
         data = JSON.parse(text || "{}");
       } catch {
-        // fallthrough
+        // pass
       }
 
-      // Ensure animation feels like “magic”
       setTimeout(() => {
         stopAnimation();
 
-        // Handle error shape: { message: "..." }
         if (!res.ok || (data && typeof data === "object" && "message" in data)) {
           setLoading(false);
           setMatch(null);
           setEmpty(false);
-          Alert.alert(
-            "Matching unavailable",
-            data?.message || "Please try again later."
-          );
+          Alert.alert("Matching unavailable", data?.message || "Please try again later.");
           return;
         }
 
-        // Expected shape: { matches: Suggestion[], pagination: {...} }
         const suggestions: Suggestion[] | undefined = data?.matches;
         if (Array.isArray(suggestions) && suggestions.length > 0) {
           setMatch(suggestions[0]);
@@ -217,7 +200,6 @@ export default function AIMatchmakerScreen() {
     }
   };
 
-  /** render breakdown bars */
   const renderBreakdown = (label: string, value?: number) => {
     if (value == null) return null;
     const pct = Math.round(value * 100);
@@ -232,11 +214,312 @@ export default function AIMatchmakerScreen() {
     );
   };
 
+  // --- Preferences state (local only) ---
+  // The design requested: two columns of 4 items (8 total):
+  const initialCollabs = {
+    "Live Stream": false,
+    Duet: false,
+    Reaction: false,
+    Podcast: false,
+    Tutorial: false,
+    Challenge: false,
+    Reviews: false,
+    Interview: false,
+  };
+  const [collabTypes, setCollabTypes] = useState<Record<string, boolean>>(initialCollabs);
+  const [minFollowers, setMinFollowers] = useState<string>("1000");
+  const [maxFollowers, setMaxFollowers] = useState<string>("1000000");
+  const [location, setLocation] = useState<string>("Select a location");
+  const [niche, setNiche] = useState<string>("Select a niche");
+  const [showNicheOptions, setShowNicheOptions] = useState<boolean>(false);
+  const [maxDistance, setMaxDistance] = useState<number>(50); // miles
+  const [frequency, setFrequency] = useState<string>("Weekly");
+
+  const NICHE_OPTIONS = [
+    "Beauty",
+    "Gaming",
+    "Music",
+    "Fitness",
+    "Food",
+    "Travel",
+    "Fashion",
+    "Tech",
+  ];
+
+  const toggleCollab = (key: string) => {
+    setCollabTypes((s) => ({ ...s, [key]: !s[key] }));
+  };
+
+  // Top header/profile area for Preferences image
+  const ProfileHeader = () => (
+    <View style={styles.profileCard}>
+      <View style={styles.profileRow}>
+        <Image
+          source={require("../../../assets/images/avatar.png")}
+          style={styles.profileAvatar}
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.profileName}>Esther</Text>
+          <Text style={styles.profileSub}>Anything Growth</Text>
+        </View>
+        <TouchableOpacity style={styles.headerEllipsis}>
+          <Feather name="more-vertical" size={20} color="#333" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderAIMatches = () => (
+    <>
+      {/* Get a Match button */}
+      <TouchableOpacity
+        onPress={handleGetMatch}
+        disabled={loading}
+        style={{ alignSelf: "center", marginBottom: 20 }}
+      >
+        <LinearGradient
+          colors={["#9333EA", "#3B82F6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.matchBtn}
+        >
+          <Text style={styles.matchBtnText}>{loading ? "Finding…" : "Get a Match"}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Loader state */}
+      {loading && (
+        <View style={styles.loader}>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <View style={styles.avatarPlaceholder} />
+          </Animated.View>
+          <Text style={styles.loaderText}>{randomRizz}% Rizz Magic…</Text>
+          <ActivityIndicator size="large" color="#9333EA" style={{ marginTop: 16 }} />
+        </View>
+      )}
+
+      {/* Empty state */}
+      {!loading && empty && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No matches (yet)</Text>
+          <Text style={styles.emptyHint}>
+            Try adding niches and a location in Edit Profile, then try again.
+          </Text>
+        </View>
+      )}
+
+      {/* Result */}
+      {match && !loading && (
+        <View style={styles.resultCard}>
+          <Image
+            source={
+              match.profile?.avatar
+                ? { uri: match.profile.avatar }
+                : require("../../../assets/images/avatar.png")
+            }
+            style={styles.resultAvatar}
+          />
+          <Text style={styles.resultName}>{match.profile?.displayName || "Unknown"}</Text>
+          <Text style={styles.resultScore}>
+            Compatibility: {Math.round(match.compatibilityScore)}%
+          </Text>
+          <Text style={styles.resultScore}>
+            Rizz Score: {match.profile?.rizzScore ?? "—"}%
+          </Text>
+
+          <TouchableOpacity style={styles.suggestBtn}>
+            <LinearGradient
+              colors={["#9333EA", "#3B82F6"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.suggestBtnGrad}
+            >
+              <Text style={styles.suggestBtnText}>Suggest Collab</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* breakdown */}
+          <View style={styles.breakdownBox}>
+            <Text style={styles.breakdownTitle}>Compatibility Breakdown</Text>
+            {renderBreakdown("Audience Overlap", match.breakdown?.audienceOverlap)}
+            {renderBreakdown("Niche Compatibility", match.breakdown?.nicheCompatibility)}
+            {renderBreakdown("Engagement Style", match.breakdown?.engagementStyle)}
+            {renderBreakdown("Geolocation", match.breakdown?.geolocation)}
+            {renderBreakdown("Activity Time", match.breakdown?.activityTime)}
+            {renderBreakdown("Rizz Compatibility", match.breakdown?.rizzScoreCompatibility)}
+          </View>
+        </View>
+      )}
+    </>
+  );
+
+  const renderPreferences = () => (
+    <>
+      <ProfileHeader />
+
+      <View style={styles.prefsCard}>
+        <Text style={styles.sectionTitle}>Collaboration Preferences</Text>
+        <Text style={styles.sectionHint}>
+          Tell us about your ideal collaboration partners and we'll find the perfect match!
+        </Text>
+
+        {/* Collaboration Types - 2 columns x 4 rows */}
+        <View style={styles.collabGrid}>
+          {Object.keys(collabTypes).map((k) => {
+            const active = collabTypes[k];
+            return (
+              <TouchableOpacity
+                key={k}
+                onPress={() => toggleCollab(k)}
+                style={[
+                  styles.collabCell,
+                  active ? styles.collabCellActive : undefined,
+                ]}
+                accessibilityRole="button"
+                activeOpacity={0.85}
+              >
+                <View style={[styles.circle, active ? styles.circleActive : undefined]}>
+                  {active ? (
+                    <Feather name="check" size={14} color="#fff" />
+                  ) : (
+                    <View style={styles.circleOutline} />
+                  )}
+                </View>
+                <View style={styles.collabTextWrap}>
+                  <Text style={[styles.collabTitle, active ? { color: "#111" } : {}]}>
+                    {k}
+                  </Text>
+                  <Text style={styles.collabSubtitle}>
+                    {getCollabSubtitle(k)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ height: 14 }} />
+
+        <View style={styles.row}>
+          <View style={styles.inputCol}>
+            <Text style={styles.label}>Minimum Followers</Text>
+            <TextInput
+              value={minFollowers}
+              onChangeText={setMinFollowers}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <Text style={styles.inputHint}>e.g. 1000</Text>
+          </View>
+          <View style={styles.inputCol}>
+            <Text style={styles.label}>Maximum Followers</Text>
+            <TextInput
+              value={maxFollowers}
+              onChangeText={setMaxFollowers}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <Text style={styles.inputHint}>e.g. 1,000,000</Text>
+          </View>
+        </View>
+
+        <View style={{ height: 12 }} />
+
+        <Text style={styles.label}>Preferred Locations</Text>
+        <TouchableOpacity style={styles.select}>
+          <Text style={styles.selectText}>{location}</Text>
+          <Feather name="chevron-down" size={18} color="#666" />
+        </TouchableOpacity>
+
+        <View style={{ height: 12 }} />
+
+        <Text style={styles.label}>Preferred Niches</Text>
+        <TouchableOpacity
+          style={styles.select}
+          onPress={() => setShowNicheOptions((s) => !s)}
+        >
+          <Text style={styles.selectText}>{niche}</Text>
+          <Feather name="chevron-down" size={18} color="#666" />
+        </TouchableOpacity>
+
+        {/* Niche options dropdown (simple) */}
+        {showNicheOptions && (
+          <View style={styles.nicheDropdown}>
+            {NICHE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => {
+                  setNiche(opt);
+                  setShowNicheOptions(false);
+                }}
+                style={styles.nicheOption}
+              >
+                <Text style={styles.nicheOptionText}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 18 }} />
+
+        <Text style={styles.label}>Maximum Distance</Text>
+
+        <View style={styles.distanceRow}>
+          <View style={styles.distanceCircle}>
+            <View style={styles.distanceInner}>
+              <Text style={styles.distanceBig}>{maxDistance}</Text>
+              <Text style={styles.distanceSmall}>mi</Text>
+            </View>
+          </View>
+
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={styles.distanceButtonsRow}>
+              {[10, 50, 100, 250].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  onPress={() => setMaxDistance(d)}
+                  style={[
+                    styles.distanceBtn,
+                    maxDistance === d ? styles.distanceBtnActive : undefined,
+                  ]}
+                >
+                  <Text style={maxDistance === d ? styles.distanceBtnTextActive : styles.distanceBtnText}>
+                    {d} mi
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.inputHint}>How far are you willing to travel for collabs?</Text>
+          </View>
+        </View>
+
+        <View style={{ height: 18 }} />
+
+        <Text style={styles.label}>Content Frequency</Text>
+        <TouchableOpacity style={styles.select}>
+          <Text style={styles.selectText}>{frequency}</Text>
+          <Feather name="chevron-down" size={18} color="#666" />
+        </TouchableOpacity>
+
+        <View style={{ height: 20 }} />
+        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.9}>
+          <LinearGradient
+            colors={["#9333EA", "#3B82F6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.saveBtnGrad}
+          >
+            <Text style={styles.saveBtnText}>Save preferences & Find Matches</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
   return (
     <View style={styles.container}>
       {/* header */}
       <View style={styles.header}>
-        {/* Bigger hitbox + slightly lower placement */}
         <TouchableOpacity
           style={styles.backButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -250,97 +533,62 @@ export default function AIMatchmakerScreen() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>AI Matchmaker</Text>
-        {/* spacer to keep title centered */}
-        <View style={{ width: 60, height: 60 }} />
+
+        <TouchableOpacity style={styles.headerIcon}>
+          <Feather name="search" size={20} color="#333" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-        {/* Get a Match button */}
+      {/* Tabs */}
+      <View style={styles.tabsRow}>
         <TouchableOpacity
-          onPress={handleGetMatch}
-          disabled={loading}
-          style={{ alignSelf: "center", marginBottom: 20 }}
+          style={[styles.tab, activeTab === "ai" ? styles.tabActive : undefined]}
+          onPress={() => setActiveTab("ai")}
         >
-          <LinearGradient
-            colors={["#9333EA", "#3B82F6"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.matchBtn}
-          >
-            <Text style={styles.matchBtnText}>
-              {loading ? "Finding…" : "Get a Match"}
-            </Text>
-          </LinearGradient>
+          <Text style={[styles.tabText, activeTab === "ai" ? styles.tabTextActive : undefined]}>
+            AI Matches
+          </Text>
         </TouchableOpacity>
 
-        {/* Loader state */}
-        {loading && (
-          <View style={styles.loader}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <View style={styles.avatarPlaceholder} />
-            </Animated.View>
-            <Text style={styles.loaderText}>{randomRizz}% Rizz Magic…</Text>
-            <ActivityIndicator size="large" color="#9333EA" style={{ marginTop: 16 }} />
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "prefs" ? styles.tabActive : undefined]}
+          onPress={() => setActiveTab("prefs")}
+        >
+          <Text style={[styles.tabText, activeTab === "prefs" ? styles.tabTextActive : undefined]}>
+            Preferences
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Empty state */}
-        {!loading && empty && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No matches (yet)</Text>
-            <Text style={styles.emptyHint}>
-              Try adding niches and a location in Edit Profile, then try again.
-            </Text>
-          </View>
-        )}
-
-        {/* Result */}
-        {match && !loading && (
-          <View style={styles.resultCard}>
-            <Image
-              source={
-                match.profile?.avatar
-                  ? { uri: match.profile.avatar }
-                : require("../../../assets/images/avatar.png")
-              }
-              style={styles.resultAvatar}
-            />
-            <Text style={styles.resultName}>
-              {match.profile?.displayName || "Unknown"}
-            </Text>
-            <Text style={styles.resultScore}>
-              Compatibility: {Math.round(match.compatibilityScore)}%
-            </Text>
-            <Text style={styles.resultScore}>
-              Rizz Score: {match.profile?.rizzScore ?? "—"}%
-            </Text>
-
-            <TouchableOpacity style={styles.suggestBtn}>
-              <LinearGradient
-                colors={["#9333EA", "#3B82F6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.suggestBtnGrad}
-              >
-                <Text style={styles.suggestBtnText}>Suggest Collab</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* breakdown */}
-            <View style={styles.breakdownBox}>
-              <Text style={styles.breakdownTitle}>Compatibility Breakdown</Text>
-              {renderBreakdown("Audience Overlap", match.breakdown?.audienceOverlap)}
-              {renderBreakdown("Niche Compatibility", match.breakdown?.nicheCompatibility)}
-              {renderBreakdown("Engagement Style", match.breakdown?.engagementStyle)}
-              {renderBreakdown("Geolocation", match.breakdown?.geolocation)}
-              {renderBreakdown("Activity Time", match.breakdown?.activityTime)}
-              {renderBreakdown("Rizz Compatibility", match.breakdown?.rizzScoreCompatibility)}
-            </View>
-          </View>
-        )}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+        {activeTab === "ai" ? renderAIMatches() : renderPreferences()}
       </ScrollView>
     </View>
   );
+}
+
+/** helper to provide the small subtitle text under each collab type (as in the image) */
+function getCollabSubtitle(key: string) {
+  switch (key) {
+    case "Live Stream":
+      return "Synchronous Content Creation";
+    case "Duet":
+      return "Synchronous Content Creation";
+    case "Reaction":
+      return "Reacting to each other's content";
+    case "Podcast":
+      return "Audio Content Collaboration";
+    case "Tutorial":
+      return "Educational content together";
+    case "Challenge":
+      return "Fun challenges and games";
+    case "Reviews":
+      return "Product or content reviews";
+    case "Interview":
+      return "Creator interviews";
+    default:
+      return "";
+  }
 }
 
 const styles = StyleSheet.create({
@@ -351,19 +599,49 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8, // a bit taller header
+    paddingVertical: 10,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
-
-  // Bigger hitbox + lowered a bit
   backButton: {
-    width: 60,
-    height: 60,
-    marginTop: 6,
+    width: 48,
+    height: 48,
+    marginTop: Platform.OS === "ios" ? 6 : 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#111" },
+  headerIcon: {
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
 
+  // Tabs
+  tabsRow: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 999,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 999,
+  },
+  tabActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tabText: { fontSize: 14, color: "#6B7280", fontWeight: "700" },
+  tabTextActive: { color: "#6D28D9" },
+
+  // Match button + loader
   matchBtn: { paddingVertical: 12, paddingHorizontal: 40, borderRadius: 999 },
   matchBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
@@ -386,6 +664,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 6 },
   emptyHint: { fontSize: 13, color: "#666", textAlign: "center" },
 
+  // Result card
   resultCard: {
     marginTop: 30,
     alignItems: "center",
@@ -395,7 +674,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   resultAvatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 12 },
-  resultName: { fontSize: 20, fontWeight: "700", color: "#333", marginBottom: 6 },
+  resultName: { fontSize: 20, fontWeight: "700", color: "#111", marginBottom: 6 },
   resultScore: { fontSize: 14, color: "#666", marginBottom: 4 },
 
   suggestBtn: { marginTop: 16 },
@@ -420,4 +699,167 @@ const styles = StyleSheet.create({
   },
   breakdownBarFill: { height: "100%", borderRadius: 4, backgroundColor: "#9333EA" },
   breakdownPct: { width: 40, fontSize: 12, textAlign: "right", color: "#333" },
+
+  // Preferences styles
+  profileCard: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  profileRow: { flexDirection: "row", alignItems: "center" },
+  profileAvatar: { width: 56, height: 56, borderRadius: 28 },
+  profileName: { fontSize: 16, fontWeight: "700", color: "#111" },
+  profileSub: { fontSize: 12, color: "#6B7280", marginTop: 4 },
+
+  headerEllipsis: { width: 44, alignItems: "center", justifyContent: "center" },
+
+  prefsCard: {
+    backgroundColor: "#fff",
+    padding: 18,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
+  sectionHint: { color: "#6B7280", fontSize: 13, marginBottom: 12 },
+
+  // Collaboration grid specifics: two columns of 4
+  collabGrid: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  collabCell: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E6E6E9",
+    marginBottom: 12,
+    backgroundColor: "#fff",
+  },
+  collabCellActive: {
+    borderColor: "#E6E6E9",
+    backgroundColor: "#F8F7FF",
+    // subtle elevation when active
+    shadowColor: "#6D28D9",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  circle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    marginTop: 2,
+  },
+  circleActive: {
+    backgroundColor: "#fff",
+    borderColor: "#7C3AED",
+  },
+  circleOutline: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+  },
+  collabTextWrap: { flex: 1 },
+  collabTitle: { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 4 },
+  collabSubtitle: { fontSize: 12, color: "#6B7280" },
+
+  row: { flexDirection: "row", justifyContent: "space-between" },
+  inputCol: { flex: 1, marginRight: 8 },
+  label: { fontSize: 13, color: "#374151", fontWeight: "700", marginBottom: 6 },
+  input: {
+    height: 44,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+  },
+  inputHint: { fontSize: 12, color: "#9CA3AF", marginTop: 6 },
+
+  select: {
+    height: 48,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexDirection: "row",
+  },
+  selectText: { color: "#374151", fontSize: 14 },
+
+  // simple niche dropdown list
+  nicheDropdown: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+    borderRadius: 10,
+    marginTop: 8,
+    overflow: "hidden",
+  },
+  nicheOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  nicheOptionText: { fontSize: 14, color: "#111" },
+
+  distanceRow: { flexDirection: "row", alignItems: "center" },
+  distanceCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  distanceInner: { alignItems: "center" },
+  distanceBig: { fontSize: 20, fontWeight: "700", color: "#6D28D9" },
+  distanceSmall: { fontSize: 12, color: "#6D28D9" },
+
+  distanceButtonsRow: { flexDirection: "row", flexWrap: "wrap" },
+  distanceBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E6E6E6",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  distanceBtnActive: {
+    backgroundColor: "#7C3AED",
+    borderColor: "#7C3AED",
+  },
+  distanceBtnText: { color: "#374151", fontWeight: "700" },
+  distanceBtnTextActive: { color: "#fff", fontWeight: "700" },
+
+  saveBtn: { marginTop: 6 },
+  saveBtnGrad: { paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
 });

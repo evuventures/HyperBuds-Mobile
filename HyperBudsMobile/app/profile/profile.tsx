@@ -15,11 +15,10 @@ import {
   Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Feather } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const defaultAvatar = require('../../assets/images/avatar.png');
@@ -29,10 +28,8 @@ const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
 
-// If your payments screen lives in a route group, change this to "/(main)/payments/payment", etc.
 const PAYMENTS_HREF: Href = '/payments/subscription';
 
-/* -------------------------------- Types -------------------------------- */
 type StatsBreakdown = {
   followers?: number;
   engagement?: number;
@@ -44,9 +41,9 @@ type ProfileModel = {
   username?: string;
   displayName?: string;
   bio?: string;
-  avatar?: string; // image URL
-  coverImage?: string; // banner URL
-  niche?: string[]; // up to 5
+  avatar?: string;
+  coverImage?: string;
+  niche?: string[];
   socialLinks?: {
     tiktok?: string;
     instagram?: string;
@@ -60,6 +57,7 @@ type ProfileModel = {
     avgEngagement?: number;
     platformBreakdown?: { [platform: string]: StatsBreakdown };
   };
+  rizzScore?: number;
   updatedAt?: string;
 };
 
@@ -84,7 +82,6 @@ const SOCIAL_ICONS: Record<string, any> = {
   linkedin: require('../../assets/images/linkedin.png'),
 };
 
-/* ------------------------------ Utilities ------------------------------ */
 const safeJson = (t: string) => {
   try {
     return t ? JSON.parse(t) : {};
@@ -118,25 +115,25 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 1, baseDelayMs = 900
       const delay =
         (transient ? baseDelayMs * Math.pow(2, attempt - 1) : 300) +
         Math.floor(Math.random() * 200);
-      await new Promise(r => setTimeout(r, delay));
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
 }
 
-/** Attach Authorization header, auto-refresh on 401 once, then retry. */
-async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 30000
+): Promise<Response> {
   const accessToken = await AsyncStorage.getItem('auth.accessToken');
   const headers = new Headers(init.headers as HeadersInit);
   headers.set('Accept', 'application/json');
-
-  // Only set Content-Type when NOT using FormData
   const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   if (isFormData) {
     headers.delete('Content-Type');
   } else {
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   }
-
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
   const go = () => fetchWithTimeout(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
@@ -150,7 +147,6 @@ async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000)
       res = await fetchWithTimeout(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
     }
   }
-
   return res;
 }
 
@@ -158,7 +154,6 @@ async function tryRefreshToken(): Promise<boolean> {
   try {
     const refreshToken = await AsyncStorage.getItem('auth.refreshToken');
     if (!refreshToken) return false;
-
     const r = await fetchWithTimeout(
       `${API_BASE}/auth/refresh`,
       {
@@ -168,13 +163,11 @@ async function tryRefreshToken(): Promise<boolean> {
       },
       15000
     );
-
     if (!r.ok) return false;
     const t = await r.text();
     const d = safeJson(t);
     const newAccess: string | undefined = d?.accessToken;
     if (!newAccess) return false;
-
     await AsyncStorage.setItem('auth.accessToken', newAccess);
     await AsyncStorage.setItem('auth.tokenIssuedAt', String(Date.now()));
     return true;
@@ -201,27 +194,25 @@ function cacheBust(url?: string, updatedAt?: string | number) {
   return `${url}${sep}v=${ver}`;
 }
 
-/* --------------------------------- UI --------------------------------- */
 export default function ProfileScreen() {
   const router = useRouter();
 
   const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
-
   const [displayName, setDisplayName] = useState<string>('');
   const [handle, setHandle] = useState<string>('');
   const [avatarUri, setAvatarUri] = useState<string | undefined>(undefined);
-  const [bannerUri, setBannerUri] = useState<string | undefined>(undefined); // kept for future use
+  const [bannerUri, setBannerUri] = useState<string | undefined>(undefined);
   const [bio, setBio] = useState<string>('');
   const [niches, setNiches] = useState<string[]>([]);
   const [socialLinks, setSocialLinks] = useState<ProfileModel['socialLinks']>({});
   const [stats, setStats] = useState<ProfileModel['stats'] | undefined>(undefined);
   const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | undefined>(undefined);
+  const [rizzScore, setRizzScore] = useState<number>(0);
 
   const loadProfile = useCallback(async () => {
     try {
       setLoadingProfile(true);
-
       const rawUser = await AsyncStorage.getItem('user');
       const saved = rawUser ? JSON.parse(rawUser) : null;
       const fallback = (saved?.username ||
@@ -249,7 +240,9 @@ export default function ProfileScreen() {
       setDisplayName(p.displayName || fallback);
       setHandle(
         p.username
-          ? (p.username.startsWith('@') ? p.username : `@${p.username}`)
+          ? p.username.startsWith('@')
+            ? p.username
+            : `@${p.username}`
           : `@${fallback}`
       );
       setAvatarUri(cacheBust(p.avatar, updatedAt));
@@ -258,6 +251,7 @@ export default function ProfileScreen() {
       setNiches(Array.isArray(p.niche) ? p.niche : []);
       setSocialLinks(p.socialLinks || {});
       setStats(p.stats);
+      setRizzScore(p.rizzScore ?? 0);
       setProfileUpdatedAt(updatedAt);
     } catch (e: any) {
       console.log('Load profile error:', e?.message || e);
@@ -267,19 +261,16 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
 
-  // Re-load whenever the screen gains focus (returning from Edit)
   useFocusEffect(
     useCallback(() => {
       loadProfile();
     }, [loadProfile])
   );
 
-  // Upload avatar via API (also cache-bust immediately)
   const handleChangeAvatar = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -301,13 +292,12 @@ export default function ProfileScreen() {
       if (result.canceled) return;
 
       setUploadingAvatar(true);
-
       const asset = result.assets[0];
       const fd = new FormData();
       fd.append('file', {
         uri: asset.uri,
         name: 'avatar.jpg',
-        type: 'image/jpeg'
+        type: 'image/jpeg',
       } as any);
       fd.append('type', 'avatar');
 
@@ -316,7 +306,6 @@ export default function ProfileScreen() {
         { method: 'POST', headers: {}, body: fd },
         30000
       );
-
       const upText = await up.text();
       const upData = safeJson(upText);
 
@@ -324,14 +313,7 @@ export default function ProfileScreen() {
         throw new Error(upData?.message || `Upload failed (${up.status})`);
       }
 
-      // Many backends set profile.avatar automatically on successful upload.
-      // If yours doesn't, uncomment the PUT below:
-      // await apiFetch('/profiles/me', { method: 'PUT', body: JSON.stringify({ avatar: upData.url }) });
-
-      // Cache-bust immediately for the local state:
       setAvatarUri(cacheBust(upData.url, Date.now()));
-
-      // Also refresh from server (ensures consistency)
       await loadProfile();
     } catch (e: any) {
       console.log('Avatar update error', e);
@@ -341,139 +323,276 @@ export default function ProfileScreen() {
     }
   };
 
-  // Build socials list
   const displaySocials = useMemo(() => {
     const s = socialLinks || {};
     return Object.entries(s).filter(([, v]) => typeof v === 'string' && v.trim().length > 0);
   }, [socialLinks]);
 
-  // Show 0 / 0% instead of a dash
+  const platformPerformance = useMemo(() => {
+    const breakdown = stats?.platformBreakdown || {};
+    const platforms: Array<{
+      key: string;
+      name: string;
+      icon: any;
+      followers: number;
+      engagement: number;
+    }> = [];
+
+    Object.entries(breakdown).forEach(([key, data]) => {
+      const platformKey = key.toLowerCase();
+      if (SOCIAL_ICONS[platformKey]) {
+        platforms.push({
+          key: platformKey,
+          name: key.toUpperCase(),
+          icon: SOCIAL_ICONS[platformKey],
+          followers: data.followers || 0,
+          engagement: data.engagement || 0,
+        });
+      }
+    });
+
+    return platforms;
+  }, [stats]);
+
   const totalFollowers = stats?.totalFollowers ?? 0;
   const avgEng = stats?.avgEngagement ?? 0;
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Top Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>HyperBuds</Text>
+        <TouchableOpacity
+          style={styles.headerMenu}
+          onPress={() => {
+            /* handle menu */
+          }}
+        >
+          <Ionicons name="menu" size={22} color="#111" />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.container}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.replace('/main/explore')}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
+        {/* Profile Card - New Design */}
+        <View style={styles.profileCard}>
+          {/* Avatar */}
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={handleChangeAvatar}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={avatarUri ? { uri: avatarUri } : defaultAvatar}
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+            {(uploadingAvatar || loadingProfile) && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator color="#fff" />
+              </View>
+            )}
+          </TouchableOpacity>
 
-        {/* Avatar */}
-        <TouchableOpacity
-          style={styles.avatar}
-          activeOpacity={0.85}
-          onPress={handleChangeAvatar}
-        >
-          <Image
-            source={avatarUri ? { uri: avatarUri } : defaultAvatar}
-            style={styles.avatarImage}
-            resizeMode="cover"
-          />
-          {(uploadingAvatar || loadingProfile) && (
-            <View style={styles.avatarOverlay}>
-              <ActivityIndicator color="#fff" />
+          {/* Name and Handle */}
+          <Text style={styles.displayName}>
+            {loadingProfile ? 'Loading…' : displayName || 'User'}
+          </Text>
+          <Text style={styles.username}>{handle || ''}</Text>
+
+          {/* Meta Info Row */}
+          <View style={styles.metaInfoRow}>
+            <View style={styles.metaInfoItem}>
+              <Feather name="edit" size={16} color="#6B7280" />
+              <Text style={styles.metaInfoText}>Joined Oct. 8, 2025</Text>
             </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Name & Handle */}
-        <Text style={styles.username}>{loadingProfile ? 'Loading…' : displayName || 'User'}</Text>
-        <Text style={styles.role}>{handle || ''}</Text>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statCount}>{formatK(totalFollowers)}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
+            <View style={styles.metaInfoItem}>
+              <Ionicons name="people-outline" size={16} color="#10B981" />
+              <Text style={styles.metaInfoPublic}>Public Profile</Text>
+            </View>
           </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statCount}>{Number.isFinite(avgEng) ? `${avgEng}%` : '0%'}</Text>
-            <Text style={styles.statLabel}>Engagement</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statCount}>{niches?.length || 0}</Text>
-            <Text style={styles.statLabel}>Niches</Text>
-          </View>
-        </View>
 
-        {/* Buttons */}
-        <View style={styles.buttonsRow}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => router.push('/profile/editprofile')}
-          >
-            <LinearGradient
-              colors={['#3B82F6', '#9333EA']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.editGradient}
+          {/* Location */}
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={16} color="#6B7280" />
+            <Text style={styles.locationText}>Ibadan, Oyo, Nigeria</Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity style={styles.getMatchButton} activeOpacity={0.9}>
+              <LinearGradient
+                colors={['#7C3AED', '#6D28D9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.getMatchGradient}
+              >
+                <Ionicons name="person-add" size={18} color="#fff" />
+                <Text style={styles.getMatchText}>Get Match</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.editProfileButton}
+              onPress={() => router.push('/profile/editprofile')}
+              activeOpacity={0.9}
             >
-              <Text style={styles.editText}>Edit Profile</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => router.push('/profile/settings')}
-          >
-            <Ionicons name="settings-outline" size={24} color="#9333EA" />
-          </TouchableOpacity>
+              <Text style={styles.editProfileText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* About Me */}
-        <Text style={styles.sectionTitle}>About Me</Text>
-        <Text style={styles.bio}>{bio?.trim() ? bio : 'No bio yet'}</Text>
+        {/* Stats Grid - Updated Design */}
+        <View style={styles.statsGrid}>
+          {/* Total Followers Card */}
+          <View style={styles.statCard}>
+            <View style={styles.statIconBadge}>
+              <Ionicons name="people" size={20} color="#3B82F6" />
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statBadgeText}>+12%</Text>
+            </View>
+            <Text style={styles.statNumber}>{formatK(totalFollowers)}</Text>
+            <Text style={styles.statLabel}>Total Followers</Text>
+          </View>
 
-        {/* Socials */}
-        <Text style={styles.sectionTitle}>Socials</Text>
-        {displaySocials.length ? (
-          <View style={styles.socialsGrid}>
-            {displaySocials.map(([key, value]) => {
+          {/* Engagement Rate Card */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#D1FAE5' }]}>
+              <Ionicons name="trending-up" size={20} color="#10B981" />
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statBadgeText}>+5%</Text>
+            </View>
+            <Text style={[styles.statNumber, { color: '#10B981' }]}>
+              {Number.isFinite(avgEng) ? `${avgEng.toFixed(1)}%` : '0%'}
+            </Text>
+            <Text style={styles.statLabel}>Engagement Rate</Text>
+          </View>
+
+          {/* Rizz Score Card */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#EDE9FE' }]}>
+              <Ionicons name="flash" size={20} color="#A78BFA" />
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statBadgeText}>+8%</Text>
+            </View>
+            <Text style={[styles.statNumber, { color: '#7C3AED' }]}>
+              {rizzScore}
+            </Text>
+            <Text style={styles.statLabel}>Rizz Score</Text>
+          </View>
+
+          {/* Total Followers Card (Duplicate with different color) */}
+          <View style={styles.statCard}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="people" size={20} color="#EF4444" />
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statBadgeText}>+12%</Text>
+            </View>
+            <Text style={[styles.statNumber, { color: '#EF4444' }]}>
+              {formatK(totalFollowers)}
+            </Text>
+            <Text style={styles.statLabel}>Total Followers</Text>
+          </View>
+        </View>
+
+        {/* Content Specialization */}
+        <Text style={styles.sectionTitle}>Content Specialization</Text>
+        <View style={styles.pillWrap}>
+          {(niches && niches.length > 0
+            ? niches
+            : ['#lifestyle', '#tech', '#music', '#gaming']
+          ).map((t, i) => (
+            <View key={i} style={styles.pill}>
+              <Text style={styles.pillText}>{t.startsWith('#') ? t : `#${t}`}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Social Media */}
+        <Text style={styles.sectionTitle}>Social Media</Text>
+        <View style={{ marginBottom: 18 }}>
+          {displaySocials.length ? (
+            displaySocials.map(([key, value]) => {
               const icon = SOCIAL_ICONS[key] || null;
-              if (!icon) return null;
+              const bgColor =
+                key === 'instagram'
+                  ? '#fdf2f8'
+                  : key === 'twitter'
+                  ? '#E8F0FF'
+                  : key === 'tiktok'
+                  ? '#0f172a'
+                  : key === 'youtube'
+                  ? '#fff0f0'
+                  : '#f5f5f5';
+              const textColor = key === 'tiktok' ? '#fff' : '#111';
+
               return (
                 <TouchableOpacity
                   key={key}
-                  style={styles.socialIconWrap}
+                  style={[styles.socialRow, { backgroundColor: bgColor }]}
                   onPress={() => openUrl(value)}
-                  activeOpacity={0.8}
                 >
-                  <Image source={icon} style={styles.socialIconImg} />
-                  <Text numberOfLines={1} style={styles.socialHandle}>{value}</Text>
+                  <View style={styles.socialLeft}>
+                    {icon ? (
+                      <Image source={icon} style={styles.socialIconImg} />
+                    ) : (
+                      <Ionicons name="share-social-outline" size={20} />
+                    )}
+                    <Text style={[styles.socialPlatform, { color: textColor }]}>
+                      {key.toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.socialRight}>
+                    <Text numberOfLines={1} style={[styles.socialLinkText, { color: textColor }]}>
+                      {value}
+                    </Text>
+                    <Ionicons name="open-outline" size={18} color={textColor} />
+                  </View>
                 </TouchableOpacity>
               );
-            })}
-          </View>
+            })
+          ) : (
+            <Text style={{ fontSize: 12, color: '#666' }}>No socials linked</Text>
+          )}
+        </View>
+
+        {/* Platform Performance */}
+        <Text style={styles.sectionTitle}>Platform Performance</Text>
+        {platformPerformance.length > 0 ? (
+          platformPerformance.map((platform) => (
+            <View key={platform.key} style={styles.platformCard}>
+              <View style={styles.platformHeader}>
+                <Image source={platform.icon} style={styles.platformIcon} />
+                <Text style={styles.platformTitle}>{platform.name}</Text>
+              </View>
+              <View style={styles.platformBody}>
+                <View style={styles.platformStat}>
+                  <Text style={styles.platformStatNum}>{formatK(platform.followers)}</Text>
+                  <Text style={styles.platformStatLabel}>Followers</Text>
+                </View>
+                <View style={styles.platformStat}>
+                  <Text style={styles.platformStatNum}>
+                    {Number.isFinite(platform.engagement)
+                      ? `${platform.engagement}%`
+                      : '0%'}
+                  </Text>
+                  <Text style={styles.platformStatLabel}>Engagement</Text>
+                </View>
+              </View>
+            </View>
+          ))
         ) : (
-          <Text style={{ fontSize: 12, color: '#666', marginBottom: 20 }}>No socials linked</Text>
+          <View style={styles.platformCard}>
+            <Text style={{ fontSize: 12, color: '#666', textAlign: 'center' }}>
+              No platform data available
+            </Text>
+          </View>
         )}
 
-        {/* Niches */}
-        <Text style={styles.sectionTitle}>Niches</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tagRow}
-        >
-          {niches && niches.length > 0 ? (
-            niches.map((n) => (
-              <View key={n} style={styles.tag}>
-                <Text style={styles.tagText}>{n}</Text>
-              </View>
-            ))
-          ) : (
-            <View style={{ paddingVertical: 6 }}>
-              <Text style={{ fontSize: 12, color: '#666' }}>No niches selected</Text>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Upgrade Button - moved to bottom */}
+        {/* Upgrade */}
         <Link href={PAYMENTS_HREF} asChild>
           <TouchableOpacity style={styles.upgradeButton}>
             <LinearGradient
@@ -503,22 +622,43 @@ function formatK(n: number) {
 
 /* -------------------------------- Styles -------------------------------- */
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  // Added extra top padding so the back button never overlaps content
-  container: { padding: 20, paddingTop: 28, paddingBottom: 40 },
-  backButton: { position: 'absolute', top: 10, left: 10, zIndex: 10 },
-  // ↓ Lowered avatar by removing the negative margin and adding a positive top margin
-  avatar: {
+  safe: { flex: 1, backgroundColor: '#f6f7fb' },
+  header: {
+    height: 56,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
+  headerMenu: { position: 'absolute', right: 18 },
+  container: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
+  
+  // Profile Card Design
+  profileCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  avatarContainer: {
     width: 120,
     height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: '#fff',
-    backgroundColor: '#ddd',
-    alignSelf: 'center',
-    marginTop: 16, // was: -60 (this caused clipping at the top)
-    marginBottom: 10,
+    borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+    marginBottom: 16,
   },
   avatarImage: { width: '100%', height: '100%' },
   avatarOverlay: {
@@ -527,42 +667,199 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
-  username: { fontSize: 20, fontWeight: '600', textAlign: 'center' },
-  role: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 10 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  statItem: { alignItems: 'center' },
-  statCount: { fontSize: 16, fontWeight: '600' },
-  statLabel: { fontSize: 12, color: '#666' },
-  /* Buttons */
-  buttonsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 30 },
-  editButton: { flex: 1, marginRight: 8, borderRadius: 10, overflow: 'hidden' },
-  editGradient: { paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
-  editText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  settingsButton: { padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#9333EA' },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 10 },
-  bio: { fontSize: 14, color: '#333', marginBottom: 20 },
-  socialsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 24 },
-  socialIconWrap: { width: (width - 40 - 14 * 3) / 4, alignItems: 'center' },
-  socialIconImg: { width: 36, height: 36, resizeMode: 'contain', marginBottom: 6 },
-  socialHandle: { fontSize: 11, color: '#444', textAlign: 'center' },
-  tagRow: { paddingVertical: 10 },
-  tag: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 6,
-    marginRight: 10
+  displayName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 4,
   },
-  tagText: { fontSize: 12, color: '#333' },
-  upgradeButton: {
-    marginTop: 30,
-    borderRadius: 10,
+  username: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  metaInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 8,
+  },
+  metaInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaInfoText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  metaInfoPublic: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  getMatchButton: {
+    flex: 1,
+    borderRadius: 12,
     overflow: 'hidden',
   },
+  getMatchGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  getMatchText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  editProfileButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editProfileText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // Updated Stats Grid Design
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
+    width: (width - 16 * 2 - 12) / 2,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    position: 'relative',
+  },
+  statIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#3B82F6',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  
+  // Sections
+  sectionTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    marginBottom: 12, 
+    marginTop: 4,
+    color: '#111' 
+  },
+  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 24 },
+  pill: {
+    backgroundColor: '#eef2ff',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  pillText: { fontSize: 12, fontWeight: '600', color: '#4338ca' },
+  
+  // Social Media
+  socialRow: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  socialLeft: { flexDirection: 'row', alignItems: 'center' },
+  socialIconImg: { width: 26, height: 26, marginRight: 10, resizeMode: 'contain' },
+  socialPlatform: { fontSize: 12, fontWeight: '700' },
+  socialRight: { flexDirection: 'row', alignItems: 'center', maxWidth: width * 0.55 },
+  socialLinkText: { fontSize: 12, marginRight: 6 },
+  
+  // Platform Performance
+  platformCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 1,
+  },
+  platformHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  platformIcon: { width: 22, height: 22, resizeMode: 'contain', marginRight: 8 },
+  platformTitle: { fontSize: 13, fontWeight: '800', color: '#1f2937' },
+  platformBody: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6 },
+  platformStat: { alignItems: 'center', flex: 1 },
+  platformStatNum: { fontSize: 18, fontWeight: '700' },
+  platformStatLabel: { fontSize: 12, color: '#6b7280' },
+  
+  // Upgrade Button
+  upgradeButton: { marginTop: 6, borderRadius: 10, overflow: 'hidden' },
   upgradeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -570,26 +867,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
   },
-  upgradeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  paymentBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  paymentBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+  upgradeText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+})

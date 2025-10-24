@@ -18,15 +18,20 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/contexts/AuthContext';
 
+// ✅ OAuth imports
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as Facebook from 'expo-auth-session/providers/facebook';
+
+WebBrowser.maybeCompleteAuthSession();
+
 export const screenOptions = { headerShown: false };
 
-/**
- * Backend base URL
- */
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
 
+// Utility functions for JSON parsing and safe fetch with timeout
 const safeJson = (text: string) => {
   try {
     return text ? JSON.parse(text) : {};
@@ -41,6 +46,7 @@ const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
     new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('Request timeout')), ms)),
   ]) as Promise<Response>;
 
+/** Retry helper for network operations */
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 2,
@@ -72,6 +78,7 @@ async function withRetry<T>(
   }
 }
 
+/** Extract meaningful API error messages */
 const extractApiError = (status: number, payload: any) => {
   if (payload?.message) return payload.message;
   if (status === 401) return 'Invalid email or password.';
@@ -79,6 +86,7 @@ const extractApiError = (status: number, payload: any) => {
   return 'Login failed. Please try again.';
 };
 
+/** Detects "unverified" messages from backend */
 const looksLikeUnverified = (msg: string) => {
   const m = (msg || '').toLowerCase();
   return (
@@ -89,6 +97,7 @@ const looksLikeUnverified = (msg: string) => {
   );
 };
 
+/** Attempt to auto-verify user email if backend supports it */
 async function tryVerifyEmail(email: string) {
   const endpoints = [
     `${API_BASE}/auth/verify-email`,
@@ -108,41 +117,6 @@ async function tryVerifyEmail(email: string) {
         20000
       )
     );
-    attempts.push(() =>
-      fetchWithTimeout(
-        ep,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ userId: email }),
-        },
-        20000
-      )
-    );
-    attempts.push(() =>
-      fetchWithTimeout(
-        ep,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ token: 'dev' }),
-        },
-        20000
-      )
-    );
-    attempts.push(() =>
-      fetchWithTimeout(
-        ep,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ code: '000000' }),
-        },
-        20000
-      )
-    );
-    const qs = `${ep}?email=${encodeURIComponent(email)}`;
-    attempts.push(() => fetchWithTimeout(qs, { method: 'GET' }, 20000));
   }
 
   for (const go of attempts) {
@@ -163,10 +137,22 @@ export default function LoginScreen() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // ✅ GOOGLE AUTH CONFIGURATION
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
+    clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // 👉 REPLACE THIS WITH YOUR EXPO CLIENT ID
+    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',   // 👉 REPLACE THIS WITH YOUR iOS CLIENT ID
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com', // 👉 REPLACE THIS WITH YOUR Android CLIENT ID
+    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',   // 👉 REPLACE THIS WITH YOUR Web Client ID
+  });
+
+  // ✅ FACEBOOK AUTH CONFIGURATION
+  const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
+    clientId: 'YOUR_FACEBOOK_APP_ID', // 👉 REPLACE THIS WITH YOUR FACEBOOK APP ID
+  });
 
   useEffect(() => {
     (async () => {
@@ -177,6 +163,83 @@ export default function LoginScreen() {
       }
     })();
   }, []);
+
+  // ✅ Handle Google response
+  useEffect(() => {
+    if (googleResponse?.type === 'success' && googleResponse.authentication?.accessToken) {
+      handleGoogleLogin(googleResponse.authentication.accessToken);
+    }
+  }, [googleResponse]);
+
+  // ✅ Handle Facebook response
+  useEffect(() => {
+    if (fbResponse?.type === 'success' && fbResponse.authentication?.accessToken) {
+      handleFacebookLogin(fbResponse.authentication.accessToken);
+    }
+  }, [fbResponse]);
+
+  const handleGoogleLogin = async (accessToken: string) => {
+    try {
+      // Optionally fetch user info directly from Google
+      const userInfoRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const userInfo = await userInfoRes.json();
+
+      // Send token to backend to exchange for your app's JWTs
+      const res = await fetch(`${API_BASE}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: accessToken }),
+      });
+
+      if (!res.ok) throw new Error('Google sign-in failed');
+      const data = await res.json();
+
+      await AsyncStorage.multiSet([
+        ['auth.accessToken', data.accessToken],
+        ['auth.refreshToken', data.refreshToken],
+        ['user', JSON.stringify(data.user)],
+        ['isLoggedIn', 'true'],
+      ]);
+
+      await (refresh?.() ?? Promise.resolve());
+      router.replace('/main/explore');
+    } catch (e: any) {
+      setError(e.message || 'Google login failed');
+    }
+  };
+
+  const handleFacebookLogin = async (accessToken: string) => {
+    try {
+      // Optionally fetch user info from Facebook Graph API
+      const userInfoRes = await fetch(
+        `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email,picture.type(large)`
+      );
+      const userInfo = await userInfoRes.json();
+
+      const res = await fetch(`${API_BASE}/auth/facebook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: accessToken }),
+      });
+
+      if (!res.ok) throw new Error('Facebook sign-in failed');
+      const data = await res.json();
+
+      await AsyncStorage.multiSet([
+        ['auth.accessToken', data.accessToken],
+        ['auth.refreshToken', data.refreshToken],
+        ['user', JSON.stringify(data.user)],
+        ['isLoggedIn', 'true'],
+      ]);
+
+      await (refresh?.() ?? Promise.resolve());
+      router.replace('/main/explore');
+    } catch (e: any) {
+      setError(e.message || 'Facebook login failed');
+    }
+  };
 
   const performLogin = async (email: string, pwd: string) => {
     const res = await withRetry(async () => {
@@ -290,17 +353,12 @@ export default function LoginScreen() {
     >
       <SafeAreaView style={styles.safe}>
         <View style={styles.screenWrap}>
-
-          {/* Back Button */}
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Feather name="arrow-left" size={24} color="#111827" />
           </TouchableOpacity>
 
-          {/* Gradient-masked title */}
           <MaskedView
-            maskElement={
-              <Text style={[styles.title, { backgroundColor: 'transparent' }]}>Log in</Text>
-            }
+            maskElement={<Text style={[styles.title, { backgroundColor: 'transparent' }]}>Log in</Text>}
           >
             <LinearGradient
               colors={['#A855F7', '#3B82F6']}
@@ -312,14 +370,26 @@ export default function LoginScreen() {
 
           <Text style={styles.subtitle}>Welcome Back!</Text>
 
+          {/* ✅ SOCIAL LOGIN BUTTONS */}
           <View style={styles.socialRow}>
-            <TouchableOpacity style={[styles.socialBtn, styles.shadowedBox]} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={[styles.socialBtn, styles.shadowedBox]}
+              activeOpacity={0.85}
+              disabled={!fbRequest}
+              onPress={() => fbPromptAsync()}
+            >
               <View style={styles.socialInner}>
                 <FontAwesome5 name="facebook-f" size={18} color="#1877F2" />
                 <Text style={styles.socialText}>Facebook</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.socialBtn, styles.shadowedBox]} activeOpacity={0.85}>
+
+            <TouchableOpacity
+              style={[styles.socialBtn, styles.shadowedBox]}
+              activeOpacity={0.85}
+              disabled={!googleRequest}
+              onPress={() => promptGoogleAsync()}
+            >
               <View style={styles.socialInner}>
                 <FontAwesome5 name="google" size={18} color="#DB4437" />
                 <Text style={styles.socialText}>Google</Text>
@@ -333,6 +403,7 @@ export default function LoginScreen() {
             <View style={styles.orLine} />
           </View>
 
+          {/* Email + Password fields */}
           <View style={[styles.inputField, styles.shadowedBox]}>
             <TextInput
               placeholder="Email"
@@ -343,7 +414,6 @@ export default function LoginScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               returnKeyType="next"
-              onSubmitEditing={() => {}}
             />
           </View>
 
@@ -369,7 +439,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.forgotRow}>
-            <TouchableOpacity onPress={() => { router.push('/login&signup/forgotpass') }}>
+            <TouchableOpacity onPress={() => router.push('/login&signup/forgotpass')}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
@@ -393,21 +463,19 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.smallActions}>
-            {
             <TouchableOpacity
               style={styles.quickLoginSmall}
               onPress={quickLogin}
               disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.quickLoginSmallText}>Quick Login</Text>
+              <Text style={styles.quickLoginSmallText}>Dev</Text>
             </TouchableOpacity>
-            }
           </View>
 
           <View style={styles.signupRow}>
             <Text style={styles.noAccount}>You don't have an account?</Text>
-            <TouchableOpacity onPress={() => { router.push('/login&signup/signup') }}>
+            <TouchableOpacity onPress={() => router.push('/login&signup/signup')}>
               <Text style={styles.signupLink}> Sign Up</Text>
             </TouchableOpacity>
           </View>
@@ -418,18 +486,14 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  background: { ...StyleSheet.absoluteFillObject },
   safe: { flex: 1, backgroundColor: 'transparent' },
-
   screenWrap: {
     flex: 1,
     paddingHorizontal: 8,
     paddingTop: Platform.OS === 'ios' ? 100 : 140,
     backgroundColor: 'transparent',
   },
-
   backButton: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 0 : 40,
@@ -437,29 +501,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
   },
-
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 6,
-    height: 44,
-  },
-
-  subtitle: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 13,
-    marginTop:10,
-    marginBottom: 30,
-  },
-
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop:25,
-    marginBottom: 12,
-  },
+  title: { fontSize: 34, fontWeight: '800', textAlign: 'center', marginBottom: 6, height: 44 },
+  subtitle: { textAlign: 'center', color: '#9CA3AF', fontSize: 13, marginTop: 10, marginBottom: 30 },
+  socialRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 25, marginBottom: 12 },
   socialBtn: {
     flex: 1,
     borderRadius: 14,
@@ -470,15 +514,9 @@ const styles = StyleSheet.create({
   },
   socialInner: { flexDirection: 'row', alignItems: 'center' },
   socialText: { marginLeft: 10, fontWeight: '600', color: '#111827' },
-
-  orRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 12,
-  },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
   orLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   orText: { marginHorizontal: 8, color: '#9CA3AF' },
-
   inputField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,7 +526,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     backgroundColor: '#F7FAFF',
   },
-
   shadowedBox: {
     shadowColor: '#000',
     shadowOpacity: 0.12,
@@ -496,35 +533,19 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-
+  input: { flex: 1, fontSize: 16, color: '#6B7280', fontWeight: '500' },
   forgotRow: { alignItems: 'flex-end', marginBottom: 6 },
   forgotText: { color: '#2563EB', fontWeight: '600' },
-
   errorText: { color: 'crimson', textAlign: 'center', marginVertical: 6 },
-
   signinBtn: { borderRadius: 12, overflow: 'hidden', marginTop: 8 },
   signinGradient: { paddingVertical: 14, alignItems: 'center', borderRadius: 12 },
   signinText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
   smallActions: { alignItems: 'flex-start', marginTop: 8 },
-  quickLoginSmall: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
+  quickLoginSmall: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   quickLoginSmallText: { color: '#374151', fontWeight: '600', fontSize: 13 },
-
   signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 14, alignItems: 'center' },
   noAccount: { color: '#6B7280' },
   signupLink: { color: '#6D28D9', fontWeight: '700' },
-
   eyeButton: {
     position: 'absolute',
     right: 14,

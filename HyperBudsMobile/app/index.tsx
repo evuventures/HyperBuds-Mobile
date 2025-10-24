@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import MaskedView from '@react-native-masked-view/masked-view';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HORIZONTAL_PADDING = 30;
 
 export default function WelcomePage() {
@@ -116,24 +116,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
-    paddingTop: 50,
+    paddingTop: 60,
     paddingHorizontal: HORIZONTAL_PADDING,
     position: 'relative',
   },
   logo: {
-    width: 280,
-    height: 100,
-    marginBottom: 20,
+    width: 320,
+    height: 120,
+    marginBottom: 15,
   },
 
   // Slogan fix
   sloganWrapper: {
-    width: SCREEN_WIDTH - HORIZONTAL_PADDING * 2, // same as content width
-    marginBottom: 26,
+    width: SCREEN_WIDTH - HORIZONTAL_PADDING * 2,
+    marginBottom: 30,
     alignItems: 'center',
   },
   slogan: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -146,15 +146,15 @@ const styles = StyleSheet.create({
   },
 
   people: {
-    width: 220,
-    height: 180,
-    marginBottom: 50,
+    width: 280,
+    height: 240,
+    marginBottom: 40,
   },
 
   signupButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 14,
     width: '100%',
   },
   fullWidthButton: {
@@ -165,9 +165,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   gradientButton: {
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 14,
   },
   fullWidthGradient: {
     width: SCREEN_WIDTH - HORIZONTAL_PADDING * 2,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
   },
 
