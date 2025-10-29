@@ -199,6 +199,7 @@ export default function ProfileScreen() {
 
   const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
+  const [loggingOut, setLoggingOut] = useState<boolean>(false);
   const [displayName, setDisplayName] = useState<string>('');
   const [handle, setHandle] = useState<string>('');
   const [avatarUri, setAvatarUri] = useState<string | undefined>(undefined);
@@ -270,6 +271,63 @@ export default function ProfileScreen() {
       loadProfile();
     }, [loadProfile])
   );
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoggingOut(true);
+              
+              // Call logout API
+              const res = await apiFetch('/auth/logout', { method: 'POST' }, 15000);
+              
+              // Clear local storage regardless of API response
+              await AsyncStorage.multiRemove([
+                'auth.accessToken',
+                'auth.refreshToken',
+                'auth.tokenIssuedAt',
+                'user',
+              ]);
+
+              if (!res.ok) {
+                const t = await res.text();
+                const d = safeJson(t);
+                console.log('Logout API warning:', d?.message || res.status);
+              }
+
+              // Navigate to login/welcome screen
+              router.replace('/login&signup/login' as any);
+            } catch (e: any) {
+              console.log('Logout error:', e?.message || e);
+              
+              // Still clear local storage and redirect even if API fails
+              await AsyncStorage.multiRemove([
+                'auth.accessToken',
+                'auth.refreshToken',
+                'auth.tokenIssuedAt',
+                'user',
+              ]);
+              
+              router.replace('/login&signup/login' as any);
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   const handleChangeAvatar = async () => {
     try {
@@ -356,72 +414,93 @@ export default function ProfileScreen() {
 
   const totalFollowers = stats?.totalFollowers ?? 0;
   const avgEng = stats?.avgEngagement ?? 0;
+  const nicheCount = niches.length;
 
   return (
     <SafeAreaView style={styles.safe}>
       {/* Top Header */}
       <View style={styles.header}>
+        <TouchableOpacity style={styles.headerBack} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#111" />
+        </TouchableOpacity>
+
         <Text style={styles.headerTitle}>HyperBuds</Text>
+
         <TouchableOpacity
           style={styles.headerMenu}
-          onPress={() => {
-            /* handle menu */
-          }}
+          onPress={handleLogout}
+          disabled={loggingOut}
         >
-          <Ionicons name="menu" size={22} color="#111" />
+          {loggingOut ? (
+            <ActivityIndicator size="small" color="#EF4444" />
+          ) : (
+            <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+          )}
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Profile Card - New Design */}
+        {/* Profile Card - Left-aligned with Bio */}
         <View style={styles.profileCard}>
-          {/* Avatar */}
-          <TouchableOpacity
-            style={styles.avatarContainer}
-            onPress={handleChangeAvatar}
-            activeOpacity={0.85}
-          >
-            <Image
-              source={avatarUri ? { uri: avatarUri } : defaultAvatar}
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
-            {(uploadingAvatar || loadingProfile) && (
-              <View style={styles.avatarOverlay}>
-                <ActivityIndicator color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.profileTopRow}>
+            {/* Avatar */}
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={handleChangeAvatar}
+              activeOpacity={0.85}
+            >
+              <Image
+                source={avatarUri ? { uri: avatarUri } : defaultAvatar}
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
+              {(uploadingAvatar || loadingProfile) && (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
 
-          {/* Name and Handle */}
-          <Text style={styles.displayName}>
-            {loadingProfile ? 'Loading…' : displayName || 'User'}
-          </Text>
-          <Text style={styles.username}>{handle || ''}</Text>
-
-          {/* Meta Info Row */}
-          <View style={styles.metaInfoRow}>
-            <View style={styles.metaInfoItem}>
-              <Feather name="edit" size={16} color="#6B7280" />
-              <Text style={styles.metaInfoText}>Joined Oct. 8, 2025</Text>
-            </View>
-            <View style={styles.metaInfoItem}>
-              <Ionicons name="people-outline" size={16} color="#10B981" />
-              <Text style={styles.metaInfoPublic}>Public Profile</Text>
+            {/* Bio Section */}
+            <View style={styles.bioSection}>
+              <Text style={styles.bioLabel}>Bio</Text>
+              <Text style={styles.bioText} numberOfLines={4}>
+                {bio || 'No bio yet. Tell us about yourself!'}
+              </Text>
             </View>
           </View>
 
-          {/* Location */}
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={16} color="#6B7280" />
-            <Text style={styles.locationText}>Ibadan, Oyo, Nigeria</Text>
+          {/* Name and Handle - Left aligned */}
+          <View style={styles.profileInfo}>
+            <Text style={styles.displayName}>
+              {loadingProfile ? 'Loading…' : displayName || 'User'}
+            </Text>
+            <Text style={styles.username}>{handle || ''}</Text>
+
+            {/* Meta Info Row */}
+            <View style={styles.metaInfoRow}>
+              <View style={styles.metaInfoItem}>
+                <Feather name="edit" size={16} color="#6B7280" />
+                <Text style={styles.metaInfoText}>Joined Oct. 8, 2025</Text>
+              </View>
+              <View style={styles.metaInfoItem}>
+                <Ionicons name="people-outline" size={16} color="#10B981" />
+                <Text style={styles.metaInfoPublic}>Public Profile</Text>
+              </View>
+            </View>
+
+            {/* Location */}
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={16} color="#6B7280" />
+              <Text style={styles.locationText}>Ibadan, Oyo, Nigeria</Text>
+            </View>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionButtonsRow}>
             <TouchableOpacity style={styles.getMatchButton} activeOpacity={0.9}>
               <LinearGradient
-                colors={['#7C3AED', '#6D28D9']}
+                colors={['#7C3AED', '#3B82F6']} // purple -> blue gradient
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.getMatchGradient}
@@ -469,8 +548,12 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Engagement Rate</Text>
           </View>
 
-          {/* Rizz Score Card */}
-          <View style={styles.statCard}>
+          {/* Rizz Score Card - Now Pressable */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push('/profile/rizzscore')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statIconBadge, { backgroundColor: '#EDE9FE' }]}>
               <Ionicons name="flash" size={20} color="#A78BFA" />
             </View>
@@ -481,20 +564,20 @@ export default function ProfileScreen() {
               {rizzScore}
             </Text>
             <Text style={styles.statLabel}>Rizz Score</Text>
-          </View>
+          </TouchableOpacity>
 
-          {/* Total Followers Card (Duplicate with different color) */}
+          {/* Niches Card */}
           <View style={styles.statCard}>
             <View style={[styles.statIconBadge, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="people" size={20} color="#EF4444" />
+              <Ionicons name="pricetags" size={20} color="#EF4444" />
             </View>
             <View style={styles.statBadge}>
               <Text style={styles.statBadgeText}>+12%</Text>
             </View>
             <Text style={[styles.statNumber, { color: '#EF4444' }]}>
-              {formatK(totalFollowers)}
+              {nicheCount}
             </Text>
-            <Text style={styles.statLabel}>Total Followers</Text>
+            <Text style={styles.statLabel}>Niches</Text>
           </View>
         </View>
 
@@ -638,27 +721,31 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   headerMenu: { position: 'absolute', right: 18 },
+  headerBack: { position: 'absolute', left: 18, padding: 6 },
   container: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
   
-  // Profile Card Design
+  // Profile Card Design - Left aligned
   profileCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 16,
     elevation: 3,
   },
+  profileTopRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 16,
+  },
   avatarContainer: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#E5E7EB',
-    marginBottom: 16,
   },
   avatarImage: { width: '100%', height: '100%' },
   avatarOverlay: {
@@ -670,6 +757,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  bioSection: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  bioLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bioText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#374151',
+  },
+  profileInfo: {
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   displayName: {
     fontSize: 24,
@@ -685,7 +793,6 @@ const styles = StyleSheet.create({
   metaInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 16,
     marginBottom: 8,
   },
@@ -707,7 +814,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 20,
   },
   locationText: {
     fontSize: 14,
@@ -734,6 +840,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+    marginLeft: 8,
   },
   editProfileButton: {
     flex: 1,
@@ -812,7 +919,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: '#111' 
   },
-  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 24 },
+  pillWrap: { flexDirection:'row', flexWrap: 'wrap', marginBottom: 24 },
   pill: {
     backgroundColor: '#eef2ff',
     paddingVertical: 8,
@@ -868,4 +975,4 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   upgradeText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-})
+});

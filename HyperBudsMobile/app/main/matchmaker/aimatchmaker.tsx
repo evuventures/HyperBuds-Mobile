@@ -19,7 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location"; // ← Get device location
+import * as Location from "expo-location";
 
 /** API base */
 const API_BASE =
@@ -160,7 +160,6 @@ export default function AIMatchmakerScreen() {
     try {
       const locQS = await resolveLocationQS();
       const url = `/matching/suggestions?refresh=true&limit=1${locQS}`;
-
       const res = await apiFetch(url, { method: "GET" });
       const text = await res.text();
       let data: any = {};
@@ -172,7 +171,6 @@ export default function AIMatchmakerScreen() {
 
       setTimeout(() => {
         stopAnimation();
-
         if (!res.ok || (data && typeof data === "object" && "message" in data)) {
           setLoading(false);
           setMatch(null);
@@ -215,7 +213,6 @@ export default function AIMatchmakerScreen() {
   };
 
   // --- Preferences state (local only) ---
-  // The design requested: two columns of 4 items (8 total):
   const initialCollabs = {
     "Live Stream": false,
     Duet: false,
@@ -226,13 +223,16 @@ export default function AIMatchmakerScreen() {
     Reviews: false,
     Interview: false,
   };
+
   const [collabTypes, setCollabTypes] = useState<Record<string, boolean>>(initialCollabs);
   const [minFollowers, setMinFollowers] = useState<string>("1000");
   const [maxFollowers, setMaxFollowers] = useState<string>("1000000");
   const [location, setLocation] = useState<string>("Select a location");
   const [niche, setNiche] = useState<string>("Select a niche");
   const [showNicheOptions, setShowNicheOptions] = useState<boolean>(false);
-  const [maxDistance, setMaxDistance] = useState<number>(50); // miles
+  const [showLocationOptions, setShowLocationOptions] = useState<boolean>(false);
+  const [showFrequencyOptions, setShowFrequencyOptions] = useState<boolean>(false);
+  const [maxDistance, setMaxDistance] = useState<number>(50);
   const [frequency, setFrequency] = useState<string>("Weekly");
 
   const NICHE_OPTIONS = [
@@ -246,11 +246,36 @@ export default function AIMatchmakerScreen() {
     "Tech",
   ];
 
+  const LOCATION_OPTIONS = [
+    "New York, NY",
+    "Los Angeles, CA",
+    "Chicago, IL",
+    "Houston, TX",
+    "Miami, FL",
+    "Atlanta, GA",
+    "Remote/Online",
+  ];
+
+  const FREQUENCY_OPTIONS = ["Daily", "Weekly", "Bi-weekly", "Monthly", "Occasionally"];
+
   const toggleCollab = (key: string) => {
     setCollabTypes((s) => ({ ...s, [key]: !s[key] }));
   };
 
-  // Top header/profile area for Preferences image
+  const handleSavePreferences = () => {
+    // Get selected collaboration types
+    const selected = Object.entries(collabTypes)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([type, _]) => type);
+
+    Alert.alert(
+      "Preferences Saved",
+      `Selected collaborations: ${selected.length > 0 ? selected.join(", ") : "None"}\nMin Followers: ${minFollowers}\nMax Followers: ${maxFollowers}\nLocation: ${location}\nNiche: ${niche}\nMax Distance: ${maxDistance} mi\nFrequency: ${frequency}`,
+      [{ text: "OK" }]
+    );
+  };
+
+  // Top header/profile area for Preferences tab
   const ProfileHeader = () => (
     <View style={styles.profileCard}>
       <View style={styles.profileRow}>
@@ -259,7 +284,7 @@ export default function AIMatchmakerScreen() {
           style={styles.profileAvatar}
         />
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.profileName}>Esther</Text>
+          <Text style={styles.profileName}>Test5867123</Text>
           <Text style={styles.profileSub}>Anything Growth</Text>
         </View>
         <TouchableOpacity style={styles.headerEllipsis}>
@@ -376,22 +401,16 @@ export default function AIMatchmakerScreen() {
                   active ? styles.collabCellActive : undefined,
                 ]}
                 accessibilityRole="button"
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
                 <View style={[styles.circle, active ? styles.circleActive : undefined]}>
-                  {active ? (
-                    <Feather name="check" size={14} color="#fff" />
-                  ) : (
-                    <View style={styles.circleOutline} />
-                  )}
+                  {active && <Feather name="check" size={14} color="#fff" />}
                 </View>
                 <View style={styles.collabTextWrap}>
-                  <Text style={[styles.collabTitle, active ? { color: "#111" } : {}]}>
+                  <Text style={[styles.collabTitle, active ? styles.collabTitleActive : {}]}>
                     {k}
                   </Text>
-                  <Text style={styles.collabSubtitle}>
-                    {getCollabSubtitle(k)}
-                  </Text>
+                  <Text style={styles.collabSubtitle}>{getCollabSubtitle(k)}</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -426,23 +445,52 @@ export default function AIMatchmakerScreen() {
         <View style={{ height: 12 }} />
 
         <Text style={styles.label}>Preferred Locations</Text>
-        <TouchableOpacity style={styles.select}>
+        <TouchableOpacity
+          style={styles.select}
+          onPress={() => {
+            setShowLocationOptions(!showLocationOptions);
+            setShowNicheOptions(false);
+            setShowFrequencyOptions(false);
+          }}
+        >
           <Text style={styles.selectText}>{location}</Text>
           <Feather name="chevron-down" size={18} color="#666" />
         </TouchableOpacity>
+
+        {/* Location options dropdown */}
+        {showLocationOptions && (
+          <View style={styles.nicheDropdown}>
+            {LOCATION_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => {
+                  setLocation(opt);
+                  setShowLocationOptions(false);
+                }}
+                style={styles.nicheOption}
+              >
+                <Text style={styles.nicheOptionText}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <View style={{ height: 12 }} />
 
         <Text style={styles.label}>Preferred Niches</Text>
         <TouchableOpacity
           style={styles.select}
-          onPress={() => setShowNicheOptions((s) => !s)}
+          onPress={() => {
+            setShowNicheOptions(!showNicheOptions);
+            setShowLocationOptions(false);
+            setShowFrequencyOptions(false);
+          }}
         >
           <Text style={styles.selectText}>{niche}</Text>
           <Feather name="chevron-down" size={18} color="#666" />
         </TouchableOpacity>
 
-        {/* Niche options dropdown (simple) */}
+        {/* Niche options dropdown */}
         {showNicheOptions && (
           <View style={styles.nicheDropdown}>
             {NICHE_OPTIONS.map((opt) => (
@@ -463,7 +511,6 @@ export default function AIMatchmakerScreen() {
         <View style={{ height: 18 }} />
 
         <Text style={styles.label}>Maximum Distance</Text>
-
         <View style={styles.distanceRow}>
           <View style={styles.distanceCircle}>
             <View style={styles.distanceInner}>
@@ -471,7 +518,6 @@ export default function AIMatchmakerScreen() {
               <Text style={styles.distanceSmall}>mi</Text>
             </View>
           </View>
-
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={styles.distanceButtonsRow}>
               {[10, 50, 100, 250].map((d) => (
@@ -483,7 +529,11 @@ export default function AIMatchmakerScreen() {
                     maxDistance === d ? styles.distanceBtnActive : undefined,
                   ]}
                 >
-                  <Text style={maxDistance === d ? styles.distanceBtnTextActive : styles.distanceBtnText}>
+                  <Text
+                    style={
+                      maxDistance === d ? styles.distanceBtnTextActive : styles.distanceBtnText
+                    }
+                  >
                     {d} mi
                   </Text>
                 </TouchableOpacity>
@@ -496,13 +546,39 @@ export default function AIMatchmakerScreen() {
         <View style={{ height: 18 }} />
 
         <Text style={styles.label}>Content Frequency</Text>
-        <TouchableOpacity style={styles.select}>
+        <TouchableOpacity
+          style={styles.select}
+          onPress={() => {
+            setShowFrequencyOptions(!showFrequencyOptions);
+            setShowLocationOptions(false);
+            setShowNicheOptions(false);
+          }}
+        >
           <Text style={styles.selectText}>{frequency}</Text>
           <Feather name="chevron-down" size={18} color="#666" />
         </TouchableOpacity>
 
+        {/* Frequency options dropdown */}
+        {showFrequencyOptions && (
+          <View style={styles.nicheDropdown}>
+            {FREQUENCY_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => {
+                  setFrequency(opt);
+                  setShowFrequencyOptions(false);
+                }}
+                style={styles.nicheOption}
+              >
+                <Text style={styles.nicheOptionText}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <View style={{ height: 20 }} />
-        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.9}>
+
+        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.8} onPress={handleSavePreferences}>
           <LinearGradient
             colors={["#9333EA", "#3B82F6"]}
             start={{ x: 0, y: 0 }}
@@ -531,9 +607,7 @@ export default function AIMatchmakerScreen() {
         >
           <Feather name="arrow-left" size={26} color="#333" />
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>AI Matchmaker</Text>
-
         <TouchableOpacity style={styles.headerIcon}>
           <Feather name="search" size={20} color="#333" />
         </TouchableOpacity>
@@ -545,16 +619,25 @@ export default function AIMatchmakerScreen() {
           style={[styles.tab, activeTab === "ai" ? styles.tabActive : undefined]}
           onPress={() => setActiveTab("ai")}
         >
-          <Text style={[styles.tabText, activeTab === "ai" ? styles.tabTextActive : undefined]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "ai" ? styles.tabTextActive : undefined,
+            ]}
+          >
             AI Matches
           </Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.tab, activeTab === "prefs" ? styles.tabActive : undefined]}
           onPress={() => setActiveTab("prefs")}
         >
-          <Text style={[styles.tabText, activeTab === "prefs" ? styles.tabTextActive : undefined]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "prefs" ? styles.tabTextActive : undefined,
+            ]}
+          >
             Preferences
           </Text>
         </TouchableOpacity>
@@ -567,7 +650,7 @@ export default function AIMatchmakerScreen() {
   );
 }
 
-/** helper to provide the small subtitle text under each collab type (as in the image) */
+/** helper to provide the small subtitle text under each collab type */
 function getCollabSubtitle(key: string) {
   switch (key) {
     case "Live Stream":
@@ -593,7 +676,6 @@ function getCollabSubtitle(key: string) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -625,12 +707,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 4,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 999,
-  },
+  tab: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 999 },
   tabActive: {
     backgroundColor: "#fff",
     shadowColor: "#000",
@@ -644,7 +721,6 @@ const styles = StyleSheet.create({
   // Match button + loader
   matchBtn: { paddingVertical: 12, paddingHorizontal: 40, borderRadius: 999 },
   matchBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-
   loader: { alignItems: "center", marginTop: 40 },
   avatarPlaceholder: {
     width: 120,
@@ -676,18 +752,13 @@ const styles = StyleSheet.create({
   resultAvatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 12 },
   resultName: { fontSize: 20, fontWeight: "700", color: "#111", marginBottom: 6 },
   resultScore: { fontSize: 14, color: "#666", marginBottom: 4 },
-
   suggestBtn: { marginTop: 16 },
   suggestBtnGrad: { paddingVertical: 10, paddingHorizontal: 32, borderRadius: 999 },
   suggestBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
   breakdownBox: { marginTop: 20, width: "100%" },
   breakdownTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12, color: "#333" },
-  breakdownRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
+  breakdownRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   breakdownLabel: { flex: 1, fontSize: 13, color: "#555" },
   breakdownBarBg: {
     flex: 2,
@@ -715,7 +786,6 @@ const styles = StyleSheet.create({
   profileAvatar: { width: 56, height: 56, borderRadius: 28 },
   profileName: { fontSize: 16, fontWeight: "700", color: "#111" },
   profileSub: { fontSize: 12, color: "#6B7280", marginTop: 4 },
-
   headerEllipsis: { width: 44, alignItems: "center", justifyContent: "center" },
 
   prefsCard: {
@@ -730,7 +800,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 6 },
   sectionHint: { color: "#6B7280", fontSize: 13, marginBottom: 12 },
 
-  // Collaboration grid specifics: two columns of 4
+  // Collaboration grid - UPDATED for more obvious selection
   collabGrid: {
     width: "100%",
     flexDirection: "row",
@@ -744,45 +814,40 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#E6E6E9",
     marginBottom: 12,
     backgroundColor: "#fff",
   },
   collabCellActive: {
-    borderColor: "#E6E6E9",
-    backgroundColor: "#F8F7FF",
-    // subtle elevation when active
-    shadowColor: "#6D28D9",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    borderColor: "#7C3AED",
+    backgroundColor: "#F3E8FF",
+    shadowColor: "#7C3AED",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   circle: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: "#D1D5DB",
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
     marginTop: 2,
   },
   circleActive: {
-    backgroundColor: "#fff",
+    backgroundColor: "#7C3AED",
     borderColor: "#7C3AED",
   },
-  circleOutline: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: "#D1D5DB",
-  },
   collabTextWrap: { flex: 1 },
-  collabTitle: { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 4 },
-  collabSubtitle: { fontSize: 12, color: "#6B7280" },
+  collabTitle: { fontSize: 14, fontWeight: "700", color: "#6B7280", marginBottom: 4 },
+  collabTitleActive: { color: "#6D28D9" },
+  collabSubtitle: { fontSize: 12, color: "#9CA3AF" },
 
   row: { flexDirection: "row", justifyContent: "space-between" },
   inputCol: { flex: 1, marginRight: 8 },
@@ -811,7 +876,7 @@ const styles = StyleSheet.create({
   },
   selectText: { color: "#374151", fontSize: 14 },
 
-  // simple niche dropdown list
+  // Niche dropdown list
   nicheDropdown: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -819,6 +884,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 8,
     overflow: "hidden",
+    maxHeight: 200,
   },
   nicheOption: {
     paddingVertical: 12,
@@ -840,7 +906,6 @@ const styles = StyleSheet.create({
   distanceInner: { alignItems: "center" },
   distanceBig: { fontSize: 20, fontWeight: "700", color: "#6D28D9" },
   distanceSmall: { fontSize: 12, color: "#6D28D9" },
-
   distanceButtonsRow: { flexDirection: "row", flexWrap: "wrap" },
   distanceBtn: {
     paddingVertical: 8,

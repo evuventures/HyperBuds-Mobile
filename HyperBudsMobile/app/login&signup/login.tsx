@@ -31,7 +31,6 @@ const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim() ||
   'https://api-hyperbuds-backend.onrender.com/api/v1';
 
-// Utility functions for JSON parsing and safe fetch with timeout
 const safeJson = (text: string) => {
   try {
     return text ? JSON.parse(text) : {};
@@ -46,7 +45,6 @@ const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
     new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('Request timeout')), ms)),
   ]) as Promise<Response>;
 
-/** Retry helper for network operations */
 async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 2,
@@ -59,26 +57,20 @@ async function withRetry<T>(
     } catch (err: any) {
       attempt++;
       if (attempt > retries) throw err;
-
       const msg = String(err?.message || err);
       const shouldBackoff =
         msg.includes('timeout') ||
         msg.includes('Network request failed') ||
         msg.includes('Failed to fetch') ||
         msg.includes('Network');
-
       const delay =
         (shouldBackoff ? baseDelayMs * Math.pow(2, attempt - 1) : 0) +
         Math.floor(Math.random() * 300);
-
-      if (delay > 0) {
-        await new Promise((r) => setTimeout(r, delay));
-      }
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     }
   }
 }
 
-/** Extract meaningful API error messages */
 const extractApiError = (status: number, payload: any) => {
   if (payload?.message) return payload.message;
   if (status === 401) return 'Invalid email or password.';
@@ -86,7 +78,6 @@ const extractApiError = (status: number, payload: any) => {
   return 'Login failed. Please try again.';
 };
 
-/** Detects "unverified" messages from backend */
 const looksLikeUnverified = (msg: string) => {
   const m = (msg || '').toLowerCase();
   return (
@@ -97,17 +88,14 @@ const looksLikeUnverified = (msg: string) => {
   );
 };
 
-/** Attempt to auto-verify user email if backend supports it */
 async function tryVerifyEmail(email: string) {
   const endpoints = [
     `${API_BASE}/auth/verify-email`,
     `${API_BASE}/auth/verfiy-email`,
   ];
-
-  const attempts: Array<() => Promise<Response>> = [];
   for (const ep of endpoints) {
-    attempts.push(() =>
-      fetchWithTimeout(
+    try {
+      const r = await fetchWithTimeout(
         ep,
         {
           method: 'POST',
@@ -115,17 +103,9 @@ async function tryVerifyEmail(email: string) {
           body: JSON.stringify({ email }),
         },
         20000
-      )
-    );
-  }
-
-  for (const go of attempts) {
-    try {
-      const r = await go();
+      );
       if (r.ok) return true;
-    } catch {
-      // ignore and continue
-    }
+    } catch {}
   }
   return false;
 }
@@ -141,17 +121,15 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ GOOGLE AUTH CONFIGURATION
   const [googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-    clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // 👉 REPLACE THIS WITH YOUR EXPO CLIENT ID
-    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',   // 👉 REPLACE THIS WITH YOUR iOS CLIENT ID
-    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com', // 👉 REPLACE THIS WITH YOUR Android CLIENT ID
-    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',   // 👉 REPLACE THIS WITH YOUR Web Client ID
+    clientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
   });
 
-  // ✅ FACEBOOK AUTH CONFIGURATION
   const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
-    clientId: 'YOUR_FACEBOOK_APP_ID', // 👉 REPLACE THIS WITH YOUR FACEBOOK APP ID
+    clientId: 'YOUR_FACEBOOK_APP_ID',
   });
 
   useEffect(() => {
@@ -164,14 +142,12 @@ export default function LoginScreen() {
     })();
   }, []);
 
-  // ✅ Handle Google response
   useEffect(() => {
     if (googleResponse?.type === 'success' && googleResponse.authentication?.accessToken) {
       handleGoogleLogin(googleResponse.authentication.accessToken);
     }
   }, [googleResponse]);
 
-  // ✅ Handle Facebook response
   useEffect(() => {
     if (fbResponse?.type === 'success' && fbResponse.authentication?.accessToken) {
       handleFacebookLogin(fbResponse.authentication.accessToken);
@@ -180,29 +156,19 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async (accessToken: string) => {
     try {
-      // Optionally fetch user info directly from Google
-      const userInfoRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const userInfo = await userInfoRes.json();
-
-      // Send token to backend to exchange for your app's JWTs
       const res = await fetch(`${API_BASE}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: accessToken }),
       });
-
       if (!res.ok) throw new Error('Google sign-in failed');
       const data = await res.json();
-
       await AsyncStorage.multiSet([
         ['auth.accessToken', data.accessToken],
         ['auth.refreshToken', data.refreshToken],
         ['user', JSON.stringify(data.user)],
         ['isLoggedIn', 'true'],
       ]);
-
       await (refresh?.() ?? Promise.resolve());
       router.replace('/main/explore');
     } catch (e: any) {
@@ -212,28 +178,19 @@ export default function LoginScreen() {
 
   const handleFacebookLogin = async (accessToken: string) => {
     try {
-      // Optionally fetch user info from Facebook Graph API
-      const userInfoRes = await fetch(
-        `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email,picture.type(large)`
-      );
-      const userInfo = await userInfoRes.json();
-
       const res = await fetch(`${API_BASE}/auth/facebook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: accessToken }),
       });
-
       if (!res.ok) throw new Error('Facebook sign-in failed');
       const data = await res.json();
-
       await AsyncStorage.multiSet([
         ['auth.accessToken', data.accessToken],
         ['auth.refreshToken', data.refreshToken],
         ['user', JSON.stringify(data.user)],
         ['isLoggedIn', 'true'],
       ]);
-
       await (refresh?.() ?? Promise.resolve());
       router.replace('/main/explore');
     } catch (e: any) {
@@ -257,17 +214,13 @@ export default function LoginScreen() {
     const text = await res.text();
     const data = safeJson(text);
 
-    if (!res.ok) {
-      throw new Error(extractApiError(res.status, data));
-    }
+    if (!res.ok) throw new Error(extractApiError(res.status, data));
 
-    const accessToken: string | undefined = data?.accessToken;
-    const refreshToken: string | undefined = data?.refreshToken;
-    const userObj: any = data?.user ?? {};
+    const accessToken = data?.accessToken;
+    const refreshToken = data?.refreshToken;
+    const userObj = data?.user ?? {};
 
-    if (!accessToken || !refreshToken) {
-      throw new Error('Malformed server response: missing tokens.');
-    }
+    if (!accessToken || !refreshToken) throw new Error('Malformed server response: missing tokens.');
 
     await AsyncStorage.multiSet([
       ['auth.accessToken', accessToken],
@@ -298,20 +251,15 @@ export default function LoginScreen() {
         const msg = String(e?.message || e);
         if (looksLikeUnverified(msg)) {
           const verified = await tryVerifyEmail(email);
-          if (!verified) {
-            throw new Error('Email not verified. Please check your inbox or contact support.');
-          }
+          if (!verified) throw new Error('Email not verified. Please check your inbox or contact support.');
           await performLogin(email, password);
         } else {
           throw e;
         }
       }
 
-      if (rememberMe) {
-        await AsyncStorage.setItem('rememberedEmail', email);
-      } else {
-        await AsyncStorage.removeItem('rememberedEmail');
-      }
+      if (rememberMe) await AsyncStorage.setItem('rememberedEmail', email);
+      else await AsyncStorage.removeItem('rememberedEmail');
 
       await (refresh?.() ?? Promise.resolve());
       setLoading(false);
@@ -491,7 +439,7 @@ const styles = StyleSheet.create({
   screenWrap: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingTop: Platform.OS === 'ios' ? 100 : 140,
+    paddingTop: Platform.OS === 'ios' ? 120 : 160, // ⬆️ raised top padding to lower everything slightly
     backgroundColor: 'transparent',
   },
   backButton: {
@@ -502,8 +450,13 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   title: { fontSize: 34, fontWeight: '800', textAlign: 'center', marginBottom: 6, height: 44 },
-  subtitle: { textAlign: 'center', color: '#9CA3AF', fontSize: 13, marginTop: 10, marginBottom: 30 },
-  socialRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 25, marginBottom: 12 },
+  subtitle: { textAlign: 'center', color: '#9CA3AF', fontSize: 13, marginTop: 10, marginBottom: 40 },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 50, // ⬆️ increased from 25 to lower buttons
+    marginBottom: 20,
+  },
   socialBtn: {
     flex: 1,
     borderRadius: 14,
@@ -514,7 +467,7 @@ const styles = StyleSheet.create({
   },
   socialInner: { flexDirection: 'row', alignItems: 'center' },
   socialText: { marginLeft: 10, fontWeight: '600', color: '#111827' },
-  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14 },
   orLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   orText: { marginHorizontal: 8, color: '#9CA3AF' },
   inputField: {
@@ -523,7 +476,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    marginBottom: 14,
+    marginBottom: 16,
     backgroundColor: '#F7FAFF',
   },
   shadowedBox: {
