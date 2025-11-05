@@ -388,6 +388,16 @@ export default function ProfileScreen() {
 
   const platformPerformance = useMemo(() => {
     const breakdown = stats?.platformBreakdown || {};
+    const s = socialLinks || {};
+    
+    // Get list of connected social platforms (ones with valid links)
+    const connectedPlatforms = Object.entries(s)
+      .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+      .map(([key]) => key.toLowerCase());
+    
+    console.log('Connected platforms:', connectedPlatforms);
+    console.log('Platform breakdown keys:', Object.keys(breakdown));
+    
     const platforms: Array<{
       key: string;
       name: string;
@@ -396,21 +406,29 @@ export default function ProfileScreen() {
       engagement: number;
     }> = [];
 
-    Object.entries(breakdown).forEach(([key, data]) => {
-      const platformKey = key.toLowerCase();
-      if (SOCIAL_ICONS[platformKey]) {
+    // Only process platforms that are both in breakdown AND connected
+    connectedPlatforms.forEach((platformKey) => {
+      // Check if we have stats for this platform (case-insensitive)
+      const statsKey = Object.keys(breakdown).find(
+        key => key.toLowerCase() === platformKey
+      );
+      
+      if (statsKey && SOCIAL_ICONS[platformKey]) {
+        const data = breakdown[statsKey];
         platforms.push({
           key: platformKey,
-          name: key.toUpperCase(),
+          name: platformKey.toUpperCase(),
           icon: SOCIAL_ICONS[platformKey],
           followers: data.followers || 0,
           engagement: data.engagement || 0,
         });
       }
     });
+    
+    console.log('Filtered platforms to show:', platforms);
 
     return platforms;
-  }, [stats]);
+  }, [stats, socialLinks]);
 
   const totalFollowers = stats?.totalFollowers ?? 0;
   const avgEng = stats?.avgEngagement ?? 0;
@@ -670,7 +688,7 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.platformCard}>
             <Text style={{ fontSize: 12, color: '#666', textAlign: 'center' }}>
-              No platform data available
+              Connect social media accounts to see platform performance
             </Text>
           </View>
         )}
