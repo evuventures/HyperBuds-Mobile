@@ -1,6 +1,7 @@
 // app/_layout.tsx
 import React, { useEffect } from 'react';
 import { Stack, usePathname } from 'expo-router';
+import { ThemeProvider } from './theme/ThemeProvider';
 
 export default function RootLayout() {
   const pathname = usePathname();
@@ -10,6 +11,8 @@ export default function RootLayout() {
   }, [pathname]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }} />
+    <ThemeProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </ThemeProvider>
   );
 }

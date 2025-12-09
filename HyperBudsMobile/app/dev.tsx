@@ -21,7 +21,9 @@ export default function Dev() {
     { label: "AI Matchmaker", path: "/main/matchmaker/aimatchmaker" },
     { label: "Explore", path: "/main/explore" },
     { label:"onboarding", path: "/registration/onboarding"},
-    { label:"verify Password", path: "/login&signup/verifyemail"}
+    { label:"verify Password", path: "/login&signup/verifyemail"},
+    {label:"Settings", path: "/profile/settings"},
+    {label: "Payment", path: "/payments.payment"}
 
     // add more routes here as needed
   ];

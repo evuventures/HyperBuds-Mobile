@@ -14,10 +14,11 @@ import {
   Platform,
   SafeAreaView,
 } from "react-native";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -31,6 +32,7 @@ const VALID_NICHES = [
   "beauty","gaming","music","fitness","food","travel","fashion","tech",
   "comedy","education","lifestyle","art","dance","sports","business","health","other",
 ] as const;
+
 type ValidNiche = typeof VALID_NICHES[number];
 
 /* --------------------------------- Types --------------------------------- */
@@ -65,12 +67,20 @@ type UsersMeResponse = {
 };
 
 /* --------------------------------- Utils --------------------------------- */
-const safeJson = (t: string) => { try { return t ? JSON.parse(t) : {}; } catch { return {}; } };
+const safeJson = (t: string) => {
+  try {
+    return t ? JSON.parse(t) : {};
+  } catch {
+    return {};
+  }
+};
 
 const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 30000) =>
   Promise.race([
     fetch(url, options),
-    new Promise<Response>((_, reject) => setTimeout(() => reject(new Error("Request timeout")), ms)),
+    new Promise<Response>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timeout")), ms)
+    ),
   ]) as Promise<Response>;
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -89,7 +99,9 @@ async function tryRefreshToken(): Promise<boolean> {
     await AsyncStorage.setItem("auth.accessToken", newAccess);
     await AsyncStorage.setItem("auth.tokenIssuedAt", String(Date.now()));
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 /** Auth-aware fetch */
@@ -97,12 +109,13 @@ async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 30000)
   const accessToken = await AsyncStorage.getItem("auth.accessToken");
   const headers: Record<string, string> = {
     Accept: "application/json",
-    ...(init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+    ...(init.body && !(init.body instanceof FormData)
+      ? { "Content-Type": "application/json" }
+      : {}),
     ...(init.headers as Record<string, string>),
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
   };
   const go = () => fetchWithTimeout(`${API_BASE}${path}`, { ...init, headers }, timeoutMs);
-
   let res = await go();
   if (res.status === 401) {
     const refreshed = await tryRefreshToken();
@@ -129,7 +142,6 @@ async function processAvatar(uri: string) {
 /* ----------------------------- Component ----------------------------- */
 export default function EditProfileScreen() {
   const router = useRouter();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -161,7 +173,8 @@ export default function EditProfileScreen() {
         setLoading(true);
         const res = await apiFetch("/users/me", { method: "GET" }, 30000);
         const data: UsersMeResponse = safeJson(await res.text());
-        if (!res.ok) throw new Error((data as any)?.message || `Failed to load profile (${res.status})`);
+        if (!res.ok)
+          throw new Error((data as any)?.message || `Failed to load profile (${res.status})`);
 
         const p = data?.profile || ({} as ProfileModel);
         setDisplayName(p.displayName || "");
@@ -204,40 +217,86 @@ export default function EditProfileScreen() {
     setAvatar(result.assets[0].uri);
   };
 
-  /** Upload avatar exactly as per API docs: POST /profiles/upload-media with { file, type } */
+  /** Upload avatar with proper React Native file handling */
   async function uploadAvatarIfLocal(uri: string | null): Promise<string | null> {
     if (!uri) return null;
+    // If already a remote URL, return as-is
     if (/^https?:\/\//i.test(uri)) return uri;
 
-    const processed = await processAvatar(uri);
-    const fd = new FormData();
-    fd.append("file", {
-      uri: processed,
-      type: "image/jpeg",
-      name: `avatar-${Date.now()}.jpg`,
-    } as any);
-    fd.append("type", "avatar");
+    try {
+      console.log("[uploadAvatarIfLocal] Starting upload for:", uri);
+      
+      const processed = await processAvatar(uri);
+      console.log("[uploadAvatarIfLocal] Image processed:", processed);
 
-    const res = await apiFetch(`/profiles/upload-media`, {
-      method: "POST",
-      body: fd,
-    }, 60000);
+      // For React Native, we need to use FileSystem to upload
+      const accessToken = await AsyncStorage.getItem("auth.accessToken");
+      
+      const uploadResult = await FileSystem.uploadAsync(
+        `${API_BASE}/profiles/upload-media`,
+        processed,
+        {
+          fieldName: 'file',
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          parameters: {
+            type: 'avatar'
+          }
+        }
+      );
 
-    const text = await res.text();
-    const data = safeJson(text);
+      console.log("[uploadAvatarIfLocal] Upload response status:", uploadResult.status);
+      console.log("[uploadAvatarIfLocal] Upload response body:", uploadResult.body);
 
-    if (!res.ok) {
-      throw new Error(data?.message || text || `Upload failed (${res.status})`);
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        const data = safeJson(uploadResult.body);
+        const errorMsg = data?.message || uploadResult.body || `Upload failed (${uploadResult.status})`;
+        console.error("[uploadAvatarIfLocal] Upload failed:", errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      const data = safeJson(uploadResult.body);
+      
+      // Check multiple possible response fields
+      const url: string | undefined = 
+        data?.url || 
+        data?.location || 
+        data?.publicUrl || 
+        data?.avatar ||
+        data?.data?.url ||
+        data?.data?.location;
+      
+      if (!url) {
+        console.error("[uploadAvatarIfLocal] No URL in response:", data);
+        throw new Error("No URL returned from upload");
+      }
+      
+      console.log("[uploadAvatarIfLocal] Upload successful:", url);
+      return url;
+      
+    } catch (error: any) {
+      console.error("[uploadAvatarIfLocal] Error:", error);
+      throw new Error(`Error uploading media: ${error.message}`);
     }
-    const url: string | undefined = data?.url || data?.location || data?.publicUrl;
-    return url ?? null;
   }
 
   /** Save profile helper: prefers PATCH /profiles/me, falls back to PUT */
   async function saveProfile(payload: Partial<ProfileModel>) {
-    let res = await apiFetch("/profiles/me", { method: "PATCH", body: JSON.stringify(payload) }, 30000);
+    console.log("[saveProfile] Attempting PATCH /profiles/me");
+    let res = await apiFetch("/profiles/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }, 30000);
+
     if (!res.ok && (res.status === 404 || res.status === 405)) {
-      res = await apiFetch("/profiles/me", { method: "PUT", body: JSON.stringify(payload) }, 30000);
+      console.log("[saveProfile] PATCH failed, trying PUT");
+      res = await apiFetch("/profiles/me", {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      }, 30000);
     }
     return res;
   }
@@ -247,9 +306,21 @@ export default function EditProfileScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      const uploadedAvatarUrl = await uploadAvatarIfLocal(avatar);
-      const avatarUrlToSend =
-        uploadedAvatarUrl || (avatar && /^https?:\/\//i.test(avatar) ? avatar : undefined);
+      console.log("[handleSave] Starting save process");
+      console.log("[handleSave] Current avatar:", avatar);
+      
+      // Upload avatar if it's a local file
+      let uploadedAvatarUrl: string | null = null;
+      if (avatar && !/^https?:\/\//i.test(avatar)) {
+        console.log("[handleSave] Avatar is local, uploading...");
+        uploadedAvatarUrl = await uploadAvatarIfLocal(avatar);
+        console.log("[handleSave] Avatar uploaded:", uploadedAvatarUrl);
+      } else if (avatar) {
+        console.log("[handleSave] Avatar is already remote URL");
+        uploadedAvatarUrl = avatar;
+      }
+
+      const avatarUrlToSend = uploadedAvatarUrl || undefined;
 
       const niche = (Array.isArray(selectedNiches) ? selectedNiches : [])
         .filter((n): n is ValidNiche => (VALID_NICHES as readonly string[]).includes(n))
@@ -269,14 +340,19 @@ export default function EditProfileScreen() {
         ...(avatarUrlToSend ? { avatar: avatarUrlToSend } : {}),
       };
 
+      console.log("[handleSave] Saving profile with payload:", payload);
+
       const res = await saveProfile(payload);
       const d = safeJson(await res.text());
       if (!res.ok) throw new Error(d?.message || `Save failed (${res.status})`);
+
+      console.log("[handleSave] Profile saved successfully");
 
       Alert.alert("Saved", "Your profile was updated.", [
         { text: "OK", onPress: () => router.push("/profile/profile") },
       ]);
     } catch (e: any) {
+      console.error("[handleSave] Save error:", e);
       Alert.alert("Save failed", e?.message || "Network request failed");
     } finally {
       setSaving(false);
@@ -287,7 +363,7 @@ export default function EditProfileScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#9333EA" />
         <Text style={{ marginTop: 12, color: "#333" }}>Loading profile…</Text>
       </View>
     );
@@ -295,7 +371,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* Top bar (lowered with padding; Ionicons fixes '?' issue) */}
+      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#333" />
@@ -306,14 +382,18 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
-          {/* Avatar */}
+          {/* Avatar with generic placeholder */}
           <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
-            <Image
-              source={avatar ? { uri: avatar } : require("../../assets/images/avatar.png")}
-              style={styles.avatar}
-            />
-            <Image source={require("../../assets/images/edit.png")} style={styles.editIcon} />
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={50} color="#9333EA" />
+              </View>
+            )}
+            <View style={styles.editIconContainer}>
+              <Ionicons name="camera" size={18} color="#fff" />
+            </View>
           </TouchableOpacity>
 
           {/* Display Name / Username */}
@@ -398,9 +478,10 @@ export default function EditProfileScreen() {
 
           {/* Save */}
           <TouchableOpacity
-            style={[styles.button, saving && { opacity: 0.7, pointerEvents: "none" }]}
+            style={[styles.button, saving && { opacity: 0.7 }]}
             disabled={saving}
             onPress={handleSave}
+            activeOpacity={0.8}
           >
             <LinearGradient
               colors={["#3B82F6", "#9333EA"]}
@@ -408,7 +489,13 @@ export default function EditProfileScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.gradient}
             >
-              <Text style={styles.buttonText} numberOfLines={1}>{saving ? "Saving…" : "Save Changes"}</Text>
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.buttonText} numberOfLines={1}>
+                  Save Changes
+                </Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
 
@@ -421,9 +508,13 @@ export default function EditProfileScreen() {
 
 /* --------------------------------- Styles -------------------------------- */
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, paddingTop: 16, alignItems: "center", backgroundColor: "#fff" },
-
-  // Lowered header via extra padding; Ionicons avoids '?' glyphs.
+  container: {
+    flexGrow: 1,
+    padding: 20,
+    paddingTop: 16,
+    alignItems: "center",
+    backgroundColor: "#fff"
+  },
   topBar: {
     height: 56,
     paddingTop: 6,
@@ -435,10 +526,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#fff",
   },
-  topTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
-  backButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-
-  avatarContainer: { position: "relative", marginTop: 16, marginBottom: 18, alignSelf: "center" },
+  topTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333"
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarContainer: {
+    position: "relative",
+    marginTop: 16,
+    marginBottom: 18,
+    alignSelf: "center"
+  },
   avatar: {
     width: 120,
     height: 120,
@@ -448,11 +552,43 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#fff",
   },
-  editIcon: { position: "absolute", bottom: 10, right: 8, width: 26, height: 26, resizeMode: "contain" },
-
-  sectionTitle: { alignSelf: "flex-start", fontSize: 18, fontWeight: "700", color: "#9333EA", marginTop: 6, marginBottom: 8 },
-  subtext: { alignSelf: "flex-start", fontSize: 13, color: "#555", marginBottom: 8 },
-
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 3,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editIconContainer: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#9333EA",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#fff",
+  },
+  sectionTitle: {
+    alignSelf: "flex-start",
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#9333EA",
+    marginTop: 6,
+    marginBottom: 8
+  },
+  subtext: {
+    alignSelf: "flex-start",
+    fontSize: 13,
+    color: "#555",
+    marginBottom: 8
+  },
   input: {
     width: "100%",
     borderWidth: 1,
@@ -472,8 +608,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     backgroundColor: "#fff",
   },
-
-  /* Niches (chip grid) */
   nicheWrap: {
     width: "100%",
     flexDirection: "row",
@@ -493,9 +627,14 @@ const styles = StyleSheet.create({
     borderColor: "#9333EA",
     backgroundColor: "#F5F3FF",
   },
-  nicheText: { color: "#333", fontSize: 14 },
-  nicheTextSelected: { color: "#6D28D9", fontWeight: "700" },
-
+  nicheText: {
+    color: "#333",
+    fontSize: 14
+  },
+  nicheTextSelected: {
+    color: "#6D28D9",
+    fontWeight: "700"
+  },
   socialRow: {
     width: "100%",
     flexDirection: "row",
@@ -507,10 +646,32 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: "#fff",
   },
-  socialIcon: { width: 22, height: 22, resizeMode: "contain" },
-  socialLabel: { fontSize: 15, color: "#000" },
-
-  button: { borderRadius: 10, overflow: "hidden", marginTop: 16, alignSelf: "center" },
-  gradient: { paddingVertical: 14, paddingHorizontal: 70, alignItems: "center", borderRadius: 10 },
-  buttonText: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  socialIcon: {
+    width: 22,
+    height: 22,
+    resizeMode: "contain"
+  },
+  socialLabel: {
+    fontSize: 15,
+    color: "#000"
+  },
+  button: {
+    borderRadius: 10,
+    overflow: "hidden",
+    marginTop: 16,
+    alignSelf: "center"
+  },
+  gradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    minHeight: 50,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600"
+  },
 });

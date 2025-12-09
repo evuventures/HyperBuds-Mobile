@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view"; // ⭐ ADDED
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -148,17 +149,38 @@ export default function Explore() {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity
+          style={styles.headerLeft}
+          onPress={() => router.push("/profile/profile")}
+        >
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>A</Text>
           </View>
-          <Text style={styles.logoText}>HyperBuds</Text>
-        </View>
-        <TouchableOpacity onPress={() => router.push("/profile/profile")}>
+
+          {/* ⭐ Gradient HyperBuds Text */}
+          <MaskedView
+            maskElement={
+              <Text style={[styles.logoText, { color: "black" }]}>
+                HyperBuds
+              </Text>
+            }
+          >
+            <LinearGradient
+              colors={["#8B5CF6", "#3B82F6"]} // Purple 500 → Blue 500
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }} // Horizontal
+            >
+              <Text style={[styles.logoText, { opacity: 0 }]}>HyperBuds</Text>
+            </LinearGradient>
+          </MaskedView>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push("/profile/notify")}>
           <Ionicons name="menu" size={24} color="#333" />
         </TouchableOpacity>
       </View>
 
+      {/* Scroll Content */}
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -192,7 +214,7 @@ export default function Explore() {
           </View>
         </LinearGradient>
 
-        {/* Trending Collaborations */}
+        {/* Trending Section */}
         <View style={styles.section}>
           <View style={styles.trendingHeaderContainer}>
             <View style={styles.trendingIconCircle}>
@@ -211,7 +233,6 @@ export default function Explore() {
             <Text style={styles.comingSoonText}>Coming Soon</Text>
           </View>
 
-          {/* Get Ready Card */}
           <LinearGradient
             colors={["#7C3AED", "#6D28D9"]}
             start={{ x: 0, y: 0 }}
@@ -257,7 +278,7 @@ export default function Explore() {
           </View>
         </View>
 
-        {/* Ready to Start Card */}
+        {/* Ready Section */}
         <LinearGradient
           colors={["#7C3AED", "#6D28D9"]}
           start={{ x: 0, y: 0 }}
@@ -281,14 +302,12 @@ export default function Explore() {
         </LinearGradient>
       </ScrollView>
 
-      {/* Floating Profile Button */}
+      {/* Floating Notification Button */}
       <TouchableOpacity
         style={styles.floatingBtn}
-        onPress={() => router.push("/profile/profile")}
+        onPress={() => router.push("/profile/notify")}
       >
-        <View style={styles.floatingBtnInner}>
-          <Text style={styles.floatingBtnText}>A</Text>
-        </View>
+        <Ionicons name="notifications" size={28} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -330,11 +349,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginLeft: 12,
-    color: "#000",
   },
   scrollView: {
     flex: 1,
   },
+
+  /* ... (all your original styles unchanged below this point) ... */
+
   morningBanner: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -393,6 +414,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+
   section: {
     marginTop: 24,
     paddingHorizontal: 16,
@@ -413,6 +435,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     marginBottom: 12,
   },
+
   trendingHeaderContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -440,6 +463,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
   },
+
   comingSoonContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -457,6 +481,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "500",
   },
+
   getReadyCard: {
     borderRadius: 16,
     padding: 32,
@@ -479,12 +504,13 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
   getReadyDescription: {
-    color: "rgba(255, 255, 255, 0.9)",
+    color: "rgba(255,255,255,0.9)",
     fontSize: 15,
     textAlign: "center",
     marginTop: 16,
     lineHeight: 22,
   },
+
   emptyState: {
     backgroundColor: "#F9FAFB",
     borderRadius: 16,
@@ -530,6 +556,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+
   readyCard: {
     marginHorizontal: 16,
     marginTop: 24,
@@ -550,6 +577,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
+
   readyButtons: {
     flexDirection: "row",
     gap: 8,
@@ -580,6 +608,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+
   floatingBtn: {
     position: "absolute",
     bottom: 24,
@@ -595,18 +624,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-  },
-  floatingBtnInner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  floatingBtnText: {
-    color: "#7C3AED",
-    fontSize: 18,
-    fontWeight: "700",
   },
 });

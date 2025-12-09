@@ -15,16 +15,23 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// ⭐ NEW: import global theme
+import { useTheme } from '../theme/ThemeProvider';
+
 const { width } = Dimensions.get('window');
 
 export default function SettingScreen() {
   const router = useRouter();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
+  // ⭐ REPLACEMENT: use global theme instead of local state
+  const { isDark, toggleTheme, colors } = useTheme();
+
+  // ========================
+  // USERNAME LOAD
+  // ========================
   const [username, setUsername] = useState<string>('');
   const [loadingName, setLoadingName] = useState<boolean>(true);
 
-  // Read username from AsyncStorage "user" (saved by your login.tsx)
   useEffect(() => {
     let alive = true;
 
@@ -54,95 +61,119 @@ export default function SettingScreen() {
 
   const handleLogout = async () => {
     try {
-      // Clear your local “session”
       await AsyncStorage.multiRemove(['user', 'isLoggedIn', 'rememberedEmail']);
-      // Send them to login
       router.replace('/login&signup/login');
     } catch (e: any) {
       Alert.alert('Logout error', e?.message || 'Unknown error');
     }
   };
 
-  // Same visual list, but we’ll attach onPress only to Logout
+  // ========================
+  // SETTINGS LIST
+  // ========================
   const settings = [
     {
       key: 'views',
       label: 'Profile Views',
       icon: <Ionicons name="checkmark-circle-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'likes',
       label: 'Likes',
       icon: <Ionicons name="heart-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'shares',
       label: 'Shares',
       icon: <Ionicons name="share-social-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'privacy',
       label: 'Privacy',
       icon: <Ionicons name="shield-checkmark-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'terms',
       label: 'Terms',
       icon: <MaterialIcons name="description" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'language',
       label: 'Language',
       icon: <Ionicons name="language-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'help',
       label: 'Help',
       icon: <Ionicons name="help-circle-outline" size={24} color="#9333EA" />,
-      onPress: undefined,
     },
     {
       key: 'logout',
       label: 'Log Out',
-      icon: <Ionicons name="log-out-outline" size={24} color="#333" />,
-      onPress: handleLogout, // <- wired up
+      icon: <Ionicons name="log-out-outline" size={24} color={colors.text} />,
+      onPress: handleLogout,
     },
   ];
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.container}>
+        
         {/* Back Arrow */}
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
 
         {/* Profile Header */}
         <View style={styles.headerSection}>
-          <View style={styles.avatarPlaceholder} />
-          <Text style={styles.name}>{loadingName ? 'Loading…' : displayHandle}</Text>
-          <Text style={styles.role}>Influencer</Text>
-          <TouchableOpacity style={styles.upgradeButton}>
-            <Text style={styles.upgradeText}>Upgrade Now - Go Pro</Text>
+          <View style={[styles.avatarPlaceholder, { backgroundColor: colors.iconBg }]} />
+          
+          <Text style={[styles.name, { color: colors.text }]}>
+            {loadingName ? 'Loading…' : displayHandle}
+          </Text>
+
+          <Text style={[styles.role, { color: colors.subtext }]}>Influencer</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.upgradeButton,
+              { borderColor: "#9333EA" },
+            ]}
+          >
+            <Text style={[styles.upgradeText]}>Upgrade Now - Go Pro</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Settings List */}
-        <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+        {/* Settings Card */}
+        <View style={[styles.settingsSection, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Settings</Text>
 
+          {/* ⭐ DARK MODE TOGGLE (minimal change) */}
+          <View style={styles.settingItem}>
+            <View style={[styles.iconWrapper, { backgroundColor: colors.iconBg }]}>
+              <Ionicons name="moon-outline" size={24} color="#9333EA" />
+            </View>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Dark Mode</Text>
+
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: '#888', true: '#9333EA' }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          {/* Other items unchanged */}
           {settings.map(item => {
             const Row = (
               <View style={styles.settingItem}>
-                <View style={styles.iconWrapper}>{item.icon}</View>
-                <Text style={styles.settingLabel}>{item.label}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#999" />
+                <View style={[styles.iconWrapper, { backgroundColor: colors.iconBg }]}>
+                  {item.icon}
+                </View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>
+                  {item.label}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.subtext} />
               </View>
             );
 
@@ -155,19 +186,6 @@ export default function SettingScreen() {
             );
           })}
 
-          {/* Notifications Toggle (unchanged visuals) */}
-          <View style={styles.settingItem}>
-            <View style={styles.iconWrapper}>
-              <Ionicons name="notifications-outline" size={24} color="#9333EA" />
-            </View>
-            <Text style={styles.settingLabel}>Notifications</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#ccc', true: '#9333EA' }}
-              thumbColor="#fff"
-            />
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -175,7 +193,7 @@ export default function SettingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f7f7f7' },
+  safe: { flex: 1 },
   container: { paddingTop: 20, paddingBottom: 40, paddingHorizontal: 20 },
 
   backButton: { position: 'absolute', top: 20, left: 20, zIndex: 10 },
@@ -185,14 +203,12 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#ddd',
     marginBottom: 15,
   },
   name: { fontSize: 20, fontWeight: '600', marginBottom: 4 },
-  role: { fontSize: 14, color: '#666', marginBottom: 15 },
+  role: { fontSize: 14, marginBottom: 15 },
   upgradeButton: {
     borderWidth: 1,
-    borderColor: '#9333EA',
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 8,
@@ -200,7 +216,6 @@ const styles = StyleSheet.create({
   upgradeText: { color: '#9333EA', fontWeight: '500' },
 
   settingsSection: {
-    backgroundColor: '#fff',
     borderRadius: 20,
     paddingVertical: 20,
     paddingHorizontal: 10,
@@ -217,10 +232,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#eee',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
   },
-  settingLabel: { flex: 1, fontSize: 16, color: '#333' },
+  settingLabel: { flex: 1, fontSize: 16 },
 });

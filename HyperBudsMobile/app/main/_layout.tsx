@@ -4,7 +4,6 @@ import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function MainLayout() {
-  // Loud mount/unmount logs to verify whether the Tabs layout is loading
   useEffect(() => {
     console.log('[MAIN/_layout] mounted');
     return () => {
@@ -21,6 +20,7 @@ export default function MainLayout() {
         tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#eee' },
       }}
     >
+      {/* Explore */}
       <Tabs.Screen
         name="explore"
         options={{
@@ -30,16 +30,22 @@ export default function MainLayout() {
           ),
         }}
       />
+
+      {/* Profile (corrected path to app/profile/profile.tsx) */}
       <Tabs.Screen
-        name="search"
+        name="../profile/profile"
         options={{
-          title: 'Search',
+          title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+            <Ionicons name="person-circle-outline" size={size} color={color} />
           ),
         }}
       />
-      {/* ✅ Matchmaker tab now points to how-it-works */}
+
+      {/* Hide auto-generated Search route */}
+      <Tabs.Screen name="search" options={{ href: null }} />
+
+      {/* Matchmaker */}
       <Tabs.Screen
         name="matchmaker/how-it-works"
         options={{
@@ -49,11 +55,13 @@ export default function MainLayout() {
           ),
         }}
       />
-      {/* 🚫 Hide the other matchmaker pages so they don't become tabs */}
+
+      {/* Hidden matchmaker pages */}
       <Tabs.Screen name="matchmaker/index" options={{ href: null }} />
       <Tabs.Screen name="matchmaker/aimatchmaker" options={{ href: null }} />
       <Tabs.Screen name="matchmaker/success" options={{ href: null }} />
 
+      {/* Messages */}
       <Tabs.Screen
         name="messages"
         options={{
