@@ -1,23 +1,41 @@
 // app/main/_layout.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function MainLayout() {
+  const [darkMode, setDarkMode] = useState(false);
+
   useEffect(() => {
     console.log('[MAIN/_layout] mounted');
+
+    const loadTheme = async () => {
+      const value = await AsyncStorage.getItem('app.darkMode');
+      setDarkMode(value === 'true');
+    };
+
+    loadTheme();
+
     return () => {
       console.log('[MAIN/_layout] unmounted');
     };
   }, []);
 
+  const tabColors = {
+    active: darkMode ? '#A855F7' : '#9333EA',
+    inactive: darkMode ? '#777' : '#999',
+    bg: darkMode ? '#000' : '#fff',
+    border: darkMode ? '#222' : '#eee',
+  };
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#9333EA',
-        tabBarInactiveTintColor: '#999',
-        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#eee' },
+        tabBarActiveTintColor: tabColors.active,
+        tabBarInactiveTintColor: tabColors.inactive,
+        tabBarStyle: { backgroundColor: tabColors.bg, borderTopColor: tabColors.border },
       }}
     >
       {/* Explore */}
@@ -31,7 +49,7 @@ export default function MainLayout() {
         }}
       />
 
-      {/* Profile (corrected path to app/profile/profile.tsx) */}
+      {/* Profile (correct path to app/profile/profile.tsx) */}
       <Tabs.Screen
         name="../profile/profile"
         options={{

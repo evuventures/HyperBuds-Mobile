@@ -31,6 +31,12 @@ const API_BASE =
 const VALID_NICHES = [
   "beauty","gaming","music","fitness","food","travel","fashion","tech",
   "comedy","education","lifestyle","art","dance","sports","business","health","other",
+
+  // --- added 30 more niches ---
+  "photography","parenting","finance","entrepreneurship","motivation","selfcare","mentalhealth",
+  "pets","cars","luxury","outdoors","home","diy","movies","tv","anime","memes","relationships",
+  "spirituality","religion","fitness-coaching","skincare","haircare","makeup","personal-branding",
+  "sports-analysis","reviews","books","science","history","news"
 ] as const;
 
 type ValidNiche = typeof VALID_NICHES[number];
@@ -217,21 +223,15 @@ export default function EditProfileScreen() {
     setAvatar(result.assets[0].uri);
   };
 
-  /** Upload avatar with proper React Native file handling */
+  /** Upload avatar */
   async function uploadAvatarIfLocal(uri: string | null): Promise<string | null> {
     if (!uri) return null;
-    // If already a remote URL, return as-is
     if (/^https?:\/\//i.test(uri)) return uri;
 
     try {
-      console.log("[uploadAvatarIfLocal] Starting upload for:", uri);
-      
       const processed = await processAvatar(uri);
-      console.log("[uploadAvatarIfLocal] Image processed:", processed);
-
-      // For React Native, we need to use FileSystem to upload
       const accessToken = await AsyncStorage.getItem("auth.accessToken");
-      
+
       const uploadResult = await FileSystem.uploadAsync(
         `${API_BASE}/profiles/upload-media`,
         processed,
@@ -239,60 +239,40 @@ export default function EditProfileScreen() {
           fieldName: 'file',
           httpMethod: 'POST',
           uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          parameters: {
-            type: 'avatar'
-          }
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+          parameters: { type: 'avatar' }
         }
       );
 
-      console.log("[uploadAvatarIfLocal] Upload response status:", uploadResult.status);
-      console.log("[uploadAvatarIfLocal] Upload response body:", uploadResult.body);
-
       if (uploadResult.status !== 200 && uploadResult.status !== 201) {
         const data = safeJson(uploadResult.body);
-        const errorMsg = data?.message || uploadResult.body || `Upload failed (${uploadResult.status})`;
-        console.error("[uploadAvatarIfLocal] Upload failed:", errorMsg);
+        const errorMsg = data?.message || uploadResult.body;
         throw new Error(errorMsg);
       }
 
       const data = safeJson(uploadResult.body);
-      
-      // Check multiple possible response fields
-      const url: string | undefined = 
-        data?.url || 
-        data?.location || 
-        data?.publicUrl || 
+      return (
+        data?.url ||
+        data?.location ||
+        data?.publicUrl ||
         data?.avatar ||
         data?.data?.url ||
-        data?.data?.location;
-      
-      if (!url) {
-        console.error("[uploadAvatarIfLocal] No URL in response:", data);
-        throw new Error("No URL returned from upload");
-      }
-      
-      console.log("[uploadAvatarIfLocal] Upload successful:", url);
-      return url;
-      
+        data?.data?.location ||
+        null
+      );
     } catch (error: any) {
-      console.error("[uploadAvatarIfLocal] Error:", error);
       throw new Error(`Error uploading media: ${error.message}`);
     }
   }
 
-  /** Save profile helper: prefers PATCH /profiles/me, falls back to PUT */
+  /** Save profile */
   async function saveProfile(payload: Partial<ProfileModel>) {
-    console.log("[saveProfile] Attempting PATCH /profiles/me");
     let res = await apiFetch("/profiles/me", {
       method: "PATCH",
       body: JSON.stringify(payload)
     }, 30000);
 
     if (!res.ok && (res.status === 404 || res.status === 405)) {
-      console.log("[saveProfile] PATCH failed, trying PUT");
       res = await apiFetch("/profiles/me", {
         method: "PUT",
         body: JSON.stringify(payload)
@@ -306,17 +286,11 @@ export default function EditProfileScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      console.log("[handleSave] Starting save process");
-      console.log("[handleSave] Current avatar:", avatar);
-      
-      // Upload avatar if it's a local file
       let uploadedAvatarUrl: string | null = null;
+
       if (avatar && !/^https?:\/\//i.test(avatar)) {
-        console.log("[handleSave] Avatar is local, uploading...");
         uploadedAvatarUrl = await uploadAvatarIfLocal(avatar);
-        console.log("[handleSave] Avatar uploaded:", uploadedAvatarUrl);
       } else if (avatar) {
-        console.log("[handleSave] Avatar is already remote URL");
         uploadedAvatarUrl = avatar;
       }
 
@@ -340,19 +314,14 @@ export default function EditProfileScreen() {
         ...(avatarUrlToSend ? { avatar: avatarUrlToSend } : {}),
       };
 
-      console.log("[handleSave] Saving profile with payload:", payload);
-
       const res = await saveProfile(payload);
       const d = safeJson(await res.text());
       if (!res.ok) throw new Error(d?.message || `Save failed (${res.status})`);
-
-      console.log("[handleSave] Profile saved successfully");
 
       Alert.alert("Saved", "Your profile was updated.", [
         { text: "OK", onPress: () => router.push("/profile/profile") },
       ]);
     } catch (e: any) {
-      console.error("[handleSave] Save error:", e);
       Alert.alert("Save failed", e?.message || "Network request failed");
     } finally {
       setSaving(false);
@@ -382,7 +351,8 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          {/* Avatar with generic placeholder */}
+          
+          {/* Avatar */}
           <TouchableOpacity style={styles.avatarContainer} onPress={pickAvatar}>
             {avatar ? (
               <Image source={{ uri: avatar }} style={styles.avatar} />
@@ -396,7 +366,7 @@ export default function EditProfileScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Display Name / Username */}
+          {/* Name */}
           <Text style={styles.sectionTitle}>Name</Text>
           <TextInput
             value={displayName}

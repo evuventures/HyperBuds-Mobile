@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view"; // ⭐ ADDED
+import MaskedView from "@react-native-masked-view/masked-view";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -113,8 +113,27 @@ type UsersMeResponse = {
 export default function Explore() {
   const router = useRouter();
   const [username, setUsername] = useState<string>("Christina");
+  const [darkMode, setDarkMode] = useState(false);
 
-  // Fetch username
+  /* ----------------------------- Load Dark Mode ----------------------------- */
+  useEffect(() => {
+    (async () => {
+      const val = await AsyncStorage.getItem("app.darkMode");
+      setDarkMode(val === "true");
+    })();
+  }, []);
+
+  /* ----------------------------- Colors ----------------------------- */
+  const colors = {
+    bg: darkMode ? "#000" : "#fff",
+    text: darkMode ? "#fff" : "#000",
+    subtext: darkMode ? "#9CA3AF" : "#6B7280",
+    card: darkMode ? "#111" : "#F9FAFB",
+    headerBorder: darkMode ? "#222" : "#F3F4F6",
+    icon: darkMode ? "#fff" : "#333",
+  };
+
+  /* ----------------------------- Fetch username ----------------------------- */
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -146,18 +165,22 @@ export default function Explore() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { borderBottomColor: colors.headerBorder, backgroundColor: colors.bg },
+        ]}
+      >
         <TouchableOpacity
           style={styles.headerLeft}
           onPress={() => router.push("/profile/profile")}
         >
-          <View style={styles.avatarCircle}>
+          <View style={[styles.avatarCircle]}>
             <Text style={styles.avatarText}>A</Text>
           </View>
 
-          {/* ⭐ Gradient HyperBuds Text */}
           <MaskedView
             maskElement={
               <Text style={[styles.logoText, { color: "black" }]}>
@@ -166,9 +189,9 @@ export default function Explore() {
             }
           >
             <LinearGradient
-              colors={["#8B5CF6", "#3B82F6"]} // Purple 500 → Blue 500
+              colors={["#8B5CF6", "#3B82F6"]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }} // Horizontal
+              end={{ x: 1, y: 0 }}
             >
               <Text style={[styles.logoText, { opacity: 0 }]}>HyperBuds</Text>
             </LinearGradient>
@@ -176,7 +199,7 @@ export default function Explore() {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push("/profile/notify")}>
-          <Ionicons name="menu" size={24} color="#333" />
+          <Ionicons name="menu" size={24} color={colors.icon} />
         </TouchableOpacity>
       </View>
 
@@ -185,7 +208,7 @@ export default function Explore() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Good Morning Banner */}
+        {/* Good Morning Banner (gradient unchanged) */}
         <LinearGradient
           colors={["#7C3AED", "#3B82F6"]}
           start={{ x: 0, y: 0 }}
@@ -201,8 +224,8 @@ export default function Explore() {
           <Text style={styles.morningTitle}>Ready to create something</Text>
           <Text style={styles.morningTitle}>amazing today?</Text>
           <Text style={styles.morningSubtitle}>
-            We have 25 new collabos and 3 collaboration trends waiting for
-            {"\n"}you and your team today!
+            We have 25 new collabos and 3 collaboration trends waiting for{"\n"}
+            you and your team today!
           </Text>
           <View style={styles.morningButtons}>
             <TouchableOpacity style={styles.morningBtnPrimary}>
@@ -221,8 +244,10 @@ export default function Explore() {
               <Ionicons name="trending-up" size={24} color="#fff" />
             </View>
             <View style={styles.trendingTextContainer}>
-              <Text style={styles.trendingTitle}>Trending Collaborations</Text>
-              <Text style={styles.trendingSubtitle}>
+              <Text style={[styles.trendingTitle, { color: colors.text }]}>
+                Trending Collaborations
+              </Text>
+              <Text style={[styles.trendingSubtitle, { color: colors.subtext }]}>
                 Most watched content this week
               </Text>
             </View>
@@ -230,7 +255,11 @@ export default function Explore() {
 
           <View style={styles.comingSoonContainer}>
             <View style={styles.comingSoonDot} />
-            <Text style={styles.comingSoonText}>Coming Soon</Text>
+            <Text
+              style={[styles.comingSoonText, { color: colors.subtext }]}
+            >
+              Coming Soon
+            </Text>
           </View>
 
           <LinearGradient
@@ -256,17 +285,32 @@ export default function Explore() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="sparkles" size={20} color="#EC4899" />
-            <Text style={styles.sectionTitle}>Recommendations</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Recommendations
+            </Text>
           </View>
-          <Text style={styles.sectionSubtitle}>
+          <Text style={[styles.sectionSubtitle, { color: colors.subtext }]}>
             Collabos you picked up - give them another chance
           </Text>
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
+
+          <View
+            style={[
+              styles.emptyState,
+              { backgroundColor: colors.card },
+            ]}
+          >
+            <View
+              style={[
+                styles.emptyIcon,
+                { backgroundColor: darkMode ? "#1f1f1f" : "#F3E8FF" },
+              ]}
+            >
               <Text style={styles.emptyEmoji}>🎯</Text>
             </View>
-            <Text style={styles.emptyTitle}>No Recommendations Yet</Text>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              No Recommendations Yet
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.subtext }]}>
               Start exploring and collaborating! We'll show you{"\n"}
               personalized picks as you go to help them match better.
             </Text>
@@ -293,7 +337,9 @@ export default function Explore() {
           </Text>
           <View style={styles.readyButtons}>
             <TouchableOpacity style={styles.readyBtnPrimary}>
-              <Text style={styles.readyBtnPrimaryText}>Browse Collabos</Text>
+              <Text style={styles.readyBtnPrimaryText}>
+                Browse Collabos
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.readyBtnSecondary}>
               <Text style={styles.readyBtnSecondaryText}>Create Portal</Text>
@@ -302,7 +348,7 @@ export default function Explore() {
         </LinearGradient>
       </ScrollView>
 
-      {/* Floating Notification Button */}
+      {/* Floating Notification */}
       <TouchableOpacity
         style={styles.floatingBtn}
         onPress={() => router.push("/profile/notify")}
@@ -313,12 +359,9 @@ export default function Explore() {
   );
 }
 
-/* ----------------------------- Styles ----------------------------- */
+/* ----------------------------- Styles (unchanged except dynamic colors above) ----------------------------- */
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  safe: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -326,12 +369,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
   avatarCircle: {
     width: 40,
     height: 40,
@@ -340,21 +379,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginLeft: 12,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  avatarText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  logoText: { fontSize: 20, fontWeight: "700", marginLeft: 12 },
 
-  /* ... (all your original styles unchanged below this point) ... */
+  scrollView: { flex: 1 },
 
   morningBanner: {
     marginHorizontal: 16,
@@ -362,11 +390,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
   },
-  morningBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
+  morningBadge: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   morningBadgeText: {
     color: "#fff",
     fontSize: 12,
@@ -386,10 +410,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  morningButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  morningButtons: { flexDirection: "row", gap: 8 },
   morningBtnPrimary: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -415,26 +436,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginLeft: 8,
-    color: "#000",
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 12,
-  },
+  section: { marginTop: 24, paddingHorizontal: 16 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginLeft: 8 },
+  sectionSubtitle: { fontSize: 14, marginBottom: 12 },
 
   trendingHeaderContainer: {
     flexDirection: "row",
@@ -450,25 +455,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  trendingTextContainer: {
-    flex: 1,
-  },
-  trendingTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#000",
-    marginBottom: 4,
-  },
-  trendingSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
+  trendingTextContainer: { flex: 1 },
+  trendingTitle: { fontSize: 20, fontWeight: "700", marginBottom: 4 },
+  trendingSubtitle: { fontSize: 14 },
 
-  comingSoonContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
+  comingSoonContainer: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   comingSoonDot: {
     width: 8,
     height: 8,
@@ -476,11 +467,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF6B35",
     marginRight: 8,
   },
-  comingSoonText: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
+  comingSoonText: { fontSize: 14, fontWeight: "500" },
 
   getReadyCard: {
     borderRadius: 16,
@@ -512,7 +499,6 @@ const styles = StyleSheet.create({
   },
 
   emptyState: {
-    backgroundColor: "#F9FAFB",
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
@@ -521,27 +507,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#F3E8FF",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
-  emptyEmoji: {
-    fontSize: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#000",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 16,
-  },
+  emptyEmoji: { fontSize: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
+  emptyText: { fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 16 },
+
   generateBtn: {
     backgroundColor: "#7C3AED",
     borderRadius: 20,
@@ -578,10 +551,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  readyButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  readyButtons: { flexDirection: "row", gap: 8 },
   readyBtnPrimary: {
     flex: 1,
     backgroundColor: "#fff",

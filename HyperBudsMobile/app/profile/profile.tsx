@@ -694,7 +694,7 @@ export default function ProfileScreen() {
         )}
 
         {/* Upgrade */}
-        <Link href={PAYMENTS_HREF} asChild>
+        {/* <Link href={PAYMENTS_HREF} asChild>
           <TouchableOpacity style={styles.upgradeButton}>
             <LinearGradient
               colors={['#3B82F6', '#9333EA']}
@@ -706,7 +706,7 @@ export default function ProfileScreen() {
               <Text style={styles.upgradeText}>Upgrade to Premium</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </Link>
+        </Link> */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
   platformStatNum: { fontSize: 18, fontWeight: '700' },
   platformStatLabel: { fontSize: 12, color: '#6b7280' },
   
-  // Upgrade Button
+  // Upgrade Button (commented out in JSX)
   upgradeButton: { marginTop: 6, borderRadius: 10, overflow: 'hidden' },
   upgradeGradient: {
     flexDirection: 'row',
